@@ -1,0 +1,1418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fuji Fruit Bot Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            color: white;
+        }
+
+        .navbar {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 80px;
+            width: 250px;
+            height: calc(100vh - 80px);
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 2rem 0;
+            z-index: 50;
+        }
+
+        .sidebar-menu {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .sidebar-menu li {
+            margin-bottom: 0.5rem;
+        }
+
+        .sidebar-menu a {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1rem 1.5rem;
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            transition: all 0.3s ease;
+            border-left: 3px solid transparent;
+            cursor: pointer;
+        }
+
+        .sidebar-menu a:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border-left-color: #7289da;
+        }
+
+        .sidebar-menu a.active {
+            background: rgba(114, 137, 218, 0.2);
+            color: white;
+            border-left-color: #7289da;
+        }
+
+        .sidebar-icon {
+            font-size: 1.2rem;
+            width: 20px;
+            text-align: center;
+        }
+
+        .main-content {
+            margin-left: 250px;
+            min-height: calc(100vh - 80px);
+        }
+
+        .navbar-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, #7289da, #99aab5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        .logout-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 25px;
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+
+        .logout-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-1px);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .welcome-section {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .welcome-title {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(45deg, #7289da, #99aab5);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .welcome-subtitle {
+            font-size: 1.2rem;
+            opacity: 0.8;
+        }
+
+        .plugin-page {
+            display: none;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .plugin-page.active {
+            display: block;
+        }
+
+        .plugin-container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 2rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        .plugin-header {
+            margin-bottom: 2rem;
+        }
+
+        .plugin-header h3 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .plugin-icon {
+            font-size: 1.8rem;
+        }
+
+        .plugin-header p {
+            opacity: 0.8;
+            font-size: 1rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .form-group select,
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .form-group select:focus,
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #7289da;
+            box-shadow: 0 0 0 3px rgba(114, 137, 218, 0.2);
+        }
+
+        .form-group select:disabled,
+        .form-group input:disabled,
+        .form-group textarea:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .form-group select option {
+            background: #2c2f33;
+            color: white;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #7289da, #5865f2);
+            color: white;
+            border: none;
+            padding: 0.75rem 2rem;
+            border-radius: 25px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(114, 137, 218, 0.4);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(114, 137, 218, 0.6);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .glass-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .glass-btn:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .glass-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .glass-btn-small {
+            background: rgba(255, 100, 100, 0.2);
+            border: 1px solid rgba(255, 150, 150, 0.3);
+            border-radius: 8px;
+            color: white;
+            padding: 0.25rem 0.75rem;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .glass-btn-small:hover {
+            background: rgba(255, 100, 100, 0.3);
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 1rem 1.5rem;
+            border-radius: 10px;
+            color: white;
+            font-weight: 500;
+            z-index: 1000;
+            animation: slideInRight 0.3s ease-out;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .notification.success {
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+        }
+
+        .notification.error {
+            background: linear-gradient(45deg, #f44336, #d32f2f);
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .mobile-menu-btn {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 200px;
+            }
+            
+            .main-content {
+                margin-left: 200px;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+            }
+            
+            .sidebar.mobile-open {
+                transform: translateX(0);
+            }
+            
+            .main-content {
+                margin-left: 0;
+            }
+            
+            .mobile-menu-btn {
+                display: block;
+                background: rgba(255, 255, 255, 0.1);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                color: white;
+                padding: 0.5rem;
+                border-radius: 8px;
+                cursor: pointer;
+            }
+        }
+
+        .feature-card {
+            background: rgba(255,255,255,0.05);
+            padding: 1.5rem;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .feature-card:hover {
+            background: rgba(255,255,255,0.1);
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="navbar-brand">
+            <button class="mobile-menu-btn" id="mobileMenuBtn">☰</button>
+            <span>🍑</span>
+            Fuji Fruit Bot
+        </div>
+        <div class="user-info">
+            <div class="user-avatar" id="userAvatar"></div>
+            <span id="username">Loading...</span>
+            <a href="/logout" class="logout-btn">Logout</a>
+        </div>
+    </nav>
+
+    <div class="sidebar" id="sidebar">
+        <ul class="sidebar-menu">
+            <li>
+                <a class="nav-link active" data-page="overview">
+                    <span class="sidebar-icon">🏠</span>
+                    <span>Overview</span>
+                </a>
+            </li>
+            <li>
+                <a class="nav-link" data-page="message-sender">
+                    <span class="sidebar-icon">💬</span>
+                    <span>Message Sender</span>
+                </a>
+            </li>
+            <li>
+                <a class="nav-link" data-page="word-filter">
+                    <span class="sidebar-icon">🚫</span>
+                    <span>Word Filter</span>
+                </a>
+            </li>
+        </ul>
+    </div>
+
+    <div class="main-content">
+        <div class="container">
+            <!-- Overview Page -->
+            <div id="overview-page" class="plugin-page active">
+                <div class="welcome-section">
+                    <h1 class="welcome-title">Welcome to your Dashboard</h1>
+                    <p class="welcome-subtitle">Manage your Discord servers with powerful tools and plugins</p>
+                </div>
+                
+                <div class="plugin-container">
+                    <h3>🍑 Fuji Fruit Bot Features</h3>
+                    <p style="margin-bottom: 1.5rem; opacity: 0.8;">Select a plugin from the sidebar to get started:</p>
+                    
+                    <div style="display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));">
+                        <div class="feature-card" data-page="message-sender">
+                            <div style="font-size: 2rem; margin-bottom: 0.5rem;">💬</div>
+                            <h4>Message Sender</h4>
+                            <p style="opacity: 0.7; font-size: 0.9rem;">Send messages with attachments, replies, emojis, and stickers</p>
+                        </div>
+                        
+                        <div class="feature-card" data-page="word-filter">
+                            <div style="font-size: 2rem; margin-bottom: 0.5rem;">🚫</div>
+                            <h4>Word Filter</h4>
+                            <p style="opacity: 0.7; font-size: 0.9rem;">Automatically detect and filter inappropriate words</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Message Sender Page -->
+            <div id="message-sender-page" class="plugin-page">
+                <div class="welcome-section">
+                    <h1 class="welcome-title">💬 Message Sender</h1>
+                    <p class="welcome-subtitle">Send messages to your Discord channels with advanced features</p>
+                </div>
+                <div id="messagePluginContainer"></div>
+            </div>
+
+            <!-- Word Filter Page -->
+            <div id="word-filter-page" class="plugin-page">
+                <div class="welcome-section">
+                    <h1 class="welcome-title">🚫 Word Filter</h1>
+                    <p class="welcome-subtitle">Automatically detect and filter inappropriate words from messages</p>
+                </div>
+                <div id="wordFilterPluginContainer"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Define global variables and functions first
+        let currentUser = null;
+
+        // Global utility functions
+        function showNotification(message, type = 'success') {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 5000);
+        }
+
+        function switchToPage(pageId) {
+            console.log('Switching to page:', pageId);
+            
+            // Hide all pages
+            const pages = document.querySelectorAll('.plugin-page');
+            pages.forEach(page => page.classList.remove('active'));
+            
+            // Show selected page
+            const targetPage = document.getElementById(pageId + '-page');
+            if (targetPage) {
+                targetPage.classList.add('active');
+            }
+            
+            // Update navigation active state
+            const navLinks = document.querySelectorAll('.nav-link');
+            navLinks.forEach(link => {
+                if (link.getAttribute('data-page') === pageId) {
+                    link.classList.add('active');
+                } else {
+                    link.classList.remove('active');
+                }
+            });
+        }
+
+        // Make functions globally available
+        window.switchToPage = switchToPage;
+        window.showNotification = showNotification;
+
+        // Plugin component functions
+        function getMessagePluginComponent() {
+            return {
+                html: `
+                    <div class="plugin-container">
+                        <div class="plugin-header">
+                            <h3><span class="plugin-icon">💬</span> Message Sender</h3>
+                            <p>Send messages to your Discord channels with optional attachments, replies, emojis, and stickers</p>
+                        </div>
+                        
+                        <form id="messageForm" enctype="multipart/form-data">
+                            <div class="form-group">
+                                <label for="serverSelect">Server</label>
+                                <select id="serverSelect" required>
+                                    <option value="">Select a server...</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="channelSelect">Channel</label>
+                                <select id="channelSelect" required disabled>
+                                    <option value="">Select a channel...</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="replyMessageId">Reply to Message (Optional)</label>
+                                <div style="display: flex; gap: 10px;">
+                                    <input type="text" id="replyMessageId" placeholder="Enter message ID to reply to...">
+                                    <button type="button" id="fetchMessageBtn" disabled class="glass-btn">Fetch</button>
+                                </div>
+                                <div id="originalMessagePreview" style="display: none; margin-top: 10px; padding: 10px; background: rgba(255,255,255,0.1); border-radius: 8px; border-left: 4px solid #7289da;">
+                                    <div id="originalMessageContent"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="messageText">Message</label>
+                                <textarea id="messageText" placeholder="Type your message here..." rows="4"></textarea>
+                                <div style="display: flex; gap: 10px; margin-top: 10px;">
+                                    <button type="button" id="emojiBtn" disabled class="glass-btn">😀 Emojis</button>
+                                    <button type="button" id="stickerBtn" disabled class="glass-btn">🎭 Stickers</button>
+                                </div>
+                                <div id="emojiPicker" style="display: none; margin-top: 10px; max-height: 300px; overflow-y: auto; background: rgba(255,255,255,0.1); border-radius: 8px; padding: 10px;">
+                                    <div id="emojiGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 5px;"></div>
+                                </div>
+                                <div id="stickerPicker" style="display: none; margin-top: 10px; max-height: 300px; overflow-y: auto; background: rgba(255,255,255,0.1); border-radius: 8px; padding: 10px;">
+                                    <div id="stickerGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: 10px;"></div>
+                                    <div id="selectedSticker" style="margin-top: 10px; padding: 10px; background: rgba(255,255,255,0.1); border-radius: 8px; display: none;">
+                                        <strong>Selected Sticker:</strong> <span id="selectedStickerName"></span>
+                                        <button type="button" id="clearStickerBtn" class="glass-btn-small">Clear</button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="attachments">Attachments</label>
+                                <input type="file" id="attachments" multiple accept="image/*,video/*,audio/*,.pdf,.txt,.doc,.docx">
+                                <div id="attachmentPreview" style="margin-top: 0.5rem;"></div>
+                            </div>
+                            
+                            <button type="submit" class="btn-primary" disabled>
+                                <span class="btn-text">Send Message</span>
+                                <span class="btn-loader" style="display: none;">Sending...</span>
+                            </button>
+                        </form>
+                    </div>
+                `,
+                script: `
+                    console.log('Loading message plugin...');
+                    
+                    const serverSelect = document.getElementById('serverSelect');
+                    const channelSelect = document.getElementById('channelSelect');
+                    const messageForm = document.getElementById('messageForm');
+                    const messageText = document.getElementById('messageText');
+                    const attachments = document.getElementById('attachments');
+                    const attachmentPreview = document.getElementById('attachmentPreview');
+                    const replyMessageId = document.getElementById('replyMessageId');
+                    const fetchMessageBtn = document.getElementById('fetchMessageBtn');
+                    const originalMessagePreview = document.getElementById('originalMessagePreview');
+                    const originalMessageContent = document.getElementById('originalMessageContent');
+                    const emojiBtn = document.getElementById('emojiBtn');
+                    const stickerBtn = document.getElementById('stickerBtn');
+                    const emojiPicker = document.getElementById('emojiPicker');
+                    const stickerPicker = document.getElementById('stickerPicker');
+                    const emojiGrid = document.getElementById('emojiGrid');
+                    const stickerGrid = document.getElementById('stickerGrid');
+                    const selectedSticker = document.getElementById('selectedSticker');
+                    const selectedStickerName = document.getElementById('selectedStickerName');
+                    const clearStickerBtn = document.getElementById('clearStickerBtn');
+                    const submitBtn = messageForm ? messageForm.querySelector('button[type="submit"]') : null;
+                    const btnText = submitBtn ? submitBtn.querySelector('.btn-text') : null;
+                    const btnLoader = submitBtn ? submitBtn.querySelector('.btn-loader') : null;
+                    
+                    let currentReplyMessageId = null;
+                    let currentStickerId = null;
+                    let serverEmojis = [];
+                    let serverStickers = [];
+                    
+                    if (serverSelect) {
+                        loadMessageServers();
+                        
+                        serverSelect.addEventListener('change', function() {
+                            const serverId = this.value;
+                            if (serverId) {
+                                loadMessageChannels(serverId);
+                                loadEmojisAndStickers(serverId);
+                                channelSelect.disabled = false;
+                                if (emojiBtn) emojiBtn.disabled = false;
+                                if (stickerBtn) stickerBtn.disabled = false;
+                            } else {
+                                channelSelect.disabled = true;
+                                channelSelect.innerHTML = '<option value="">Select a channel...</option>';
+                                if (emojiBtn) emojiBtn.disabled = true;
+                                if (stickerBtn) stickerBtn.disabled = true;
+                                if (emojiPicker) emojiPicker.style.display = 'none';
+                                if (stickerPicker) stickerPicker.style.display = 'none';
+                            }
+                            updateFetchButton();
+                            updateSubmitButton();
+                        });
+                    }
+                    
+                    if (channelSelect) {
+                        channelSelect.addEventListener('change', function() {
+                            updateFetchButton();
+                            updateSubmitButton();
+                            clearReplyPreview();
+                        });
+                    }
+                    
+                    if (replyMessageId) {
+                        replyMessageId.addEventListener('input', function() {
+                            updateFetchButton();
+                            clearReplyPreview();
+                        });
+                    }
+                    
+                    if (fetchMessageBtn) {
+                        fetchMessageBtn.addEventListener('click', async function() {
+                            await fetchOriginalMessage();
+                        });
+                    }
+                    
+                    if (emojiBtn) {
+                        emojiBtn.addEventListener('click', function() {
+                            if (emojiPicker.style.display === 'none') {
+                                emojiPicker.style.display = 'block';
+                                if (stickerPicker) stickerPicker.style.display = 'none';
+                            } else {
+                                emojiPicker.style.display = 'none';
+                            }
+                        });
+                    }
+                    
+                    if (stickerBtn) {
+                        stickerBtn.addEventListener('click', function() {
+                            if (stickerPicker.style.display === 'none') {
+                                stickerPicker.style.display = 'block';
+                                if (emojiPicker) emojiPicker.style.display = 'none';
+                            } else {
+                                stickerPicker.style.display = 'none';
+                            }
+                        });
+                    }
+                    
+                    if (clearStickerBtn) {
+                        clearStickerBtn.addEventListener('click', function() {
+                            currentStickerId = null;
+                            selectedSticker.style.display = 'none';
+                            updateSubmitButton();
+                        });
+                    }
+                    
+                    if (messageText) {
+                        messageText.addEventListener('input', updateSubmitButton);
+                    }
+                    
+                    if (attachments) {
+                        attachments.addEventListener('change', function() {
+                            updateAttachmentPreview();
+                            updateSubmitButton();
+                        });
+                    }
+                    
+                    if (messageForm) {
+                        messageForm.addEventListener('submit', async function(e) {
+                            e.preventDefault();
+                            await sendMessage();
+                        });
+                    }
+                    
+                    async function loadMessageServers() {
+                        try {
+                            const response = await fetch('/api/servers');
+                            const servers = await response.json();
+                            
+                            serverSelect.innerHTML = '<option value="">Select a server...</option>';
+                            servers.forEach(server => {
+                                const option = document.createElement('option');
+                                option.value = server.id;
+                                option.textContent = server.name;
+                                serverSelect.appendChild(option);
+                            });
+                        } catch (error) {
+                            console.error('Error loading servers:', error);
+                            showNotification('Error loading servers', 'error');
+                        }
+                    }
+                    
+                    async function loadMessageChannels(serverId) {
+                        try {
+                            channelSelect.innerHTML = '<option value="">Loading...</option>';
+                            const response = await fetch(\`/api/channels/\${serverId}\`);
+                            const channels = await response.json();
+                            
+                            channelSelect.innerHTML = '<option value="">Select a channel...</option>';
+                            channels.forEach(channel => {
+                                const option = document.createElement('option');
+                                option.value = channel.id;
+                                option.textContent = \`# \${channel.name}\`;
+                                channelSelect.appendChild(option);
+                            });
+                        } catch (error) {
+                            console.error('Error loading channels:', error);
+                            channelSelect.innerHTML = '<option value="">Error loading channels</option>';
+                        }
+                    }
+                    
+                    async function loadEmojisAndStickers(serverId) {
+                        try {
+                            const response = await fetch(\`/api/plugins/message/emojis/\${serverId}\`);
+                            const data = await response.json();
+                            
+                            if (response.ok) {
+                                serverEmojis = data.emojis;
+                                serverStickers = data.stickers;
+                                displayEmojis();
+                                displayStickers();
+                            } else {
+                                console.error('Error loading emojis and stickers:', data.error);
+                            }
+                        } catch (error) {
+                            console.error('Error loading emojis and stickers:', error);
+                        }
+                    }
+                    
+                    function displayEmojis() {
+                        if (!emojiGrid) return;
+                        emojiGrid.innerHTML = '';
+                        serverEmojis.forEach(emoji => {
+                            const emojiElement = document.createElement('div');
+                            emojiElement.style.cssText = 'cursor: pointer; padding: 5px; border-radius: 4px; text-align: center; transition: background 0.2s;';
+                            emojiElement.innerHTML = \`<img src="\${emoji.url}" alt="\${emoji.name}" title="\${emoji.name}" style="width: 32px; height: 32px;">\`;
+                            emojiElement.addEventListener('click', function() {
+                                insertEmoji(emoji.usage);
+                            });
+                            emojiElement.addEventListener('mouseenter', function() {
+                                this.style.background = 'rgba(255,255,255,0.1)';
+                            });
+                            emojiElement.addEventListener('mouseleave', function() {
+                                this.style.background = 'transparent';
+                            });
+                            emojiGrid.appendChild(emojiElement);
+                        });
+                    }
+                    
+                    function displayStickers() {
+                        if (!stickerGrid) return;
+                        stickerGrid.innerHTML = '';
+                        serverStickers.forEach(sticker => {
+                            const stickerElement = document.createElement('div');
+                            stickerElement.style.cssText = 'cursor: pointer; padding: 5px; border-radius: 4px; text-align: center; transition: background 0.2s;';
+                            stickerElement.innerHTML = \`<img src="\${sticker.url}" alt="\${sticker.name}" title="\${sticker.name}" style="width: 50px; height: 50px; object-fit: contain;">\`;
+                            stickerElement.addEventListener('click', function() {
+                                selectSticker(sticker);
+                            });
+                            stickerElement.addEventListener('mouseenter', function() {
+                                this.style.background = 'rgba(255,255,255,0.1)';
+                            });
+                            stickerElement.addEventListener('mouseleave', function() {
+                                this.style.background = 'transparent';
+                            });
+                            stickerGrid.appendChild(stickerElement);
+                        });
+                    }
+                    
+                    function insertEmoji(emojiUsage) {
+                        if (!messageText) return;
+                        const currentText = messageText.value;
+                        const cursorPos = messageText.selectionStart;
+                        const newText = currentText.slice(0, cursorPos) + emojiUsage + ' ' + currentText.slice(cursorPos);
+                        messageText.value = newText;
+                        messageText.focus();
+                        messageText.setSelectionRange(cursorPos + emojiUsage.length + 1, cursorPos + emojiUsage.length + 1);
+                        updateSubmitButton();
+                    }
+                    
+                    function selectSticker(sticker) {
+                        currentStickerId = sticker.id;
+                        if (selectedStickerName) selectedStickerName.textContent = sticker.name;
+                        if (selectedSticker) selectedSticker.style.display = 'block';
+                        if (stickerPicker) stickerPicker.style.display = 'none';
+                        updateSubmitButton();
+                    }
+                    
+                    async function fetchOriginalMessage() {
+                        const channelId = channelSelect ? channelSelect.value : '';
+                        const messageId = replyMessageId ? replyMessageId.value.trim() : '';
+                        
+                        if (!channelId || !messageId) return;
+                        
+                        try {
+                            if (fetchMessageBtn) {
+                                fetchMessageBtn.textContent = 'Fetching...';
+                                fetchMessageBtn.disabled = true;
+                            }
+                            
+                            const response = await fetch(\`/api/plugins/message/\${channelId}/\${messageId}\`);
+                            const messageData = await response.json();
+                            
+                            if (response.ok) {
+                                currentReplyMessageId = messageId;
+                                displayOriginalMessage(messageData);
+                                updateSubmitButton();
+                            } else {
+                                throw new Error(messageData.error || 'Failed to fetch message');
+                            }
+                        } catch (error) {
+                            console.error('Error fetching message:', error);
+                            showNotification(error.message, 'error');
+                            clearReplyPreview();
+                        } finally {
+                            if (fetchMessageBtn) {
+                                fetchMessageBtn.textContent = 'Fetch';
+                                updateFetchButton();
+                            }
+                        }
+                    }
+                    
+                    function displayOriginalMessage(messageData) {
+                        if (!originalMessageContent) return;
+                        const createdAt = new Date(messageData.createdAt).toLocaleString();
+                        originalMessageContent.innerHTML = \`
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                <img src="\${messageData.author.avatar}" alt="Avatar" style="width: 20px; height: 20px; border-radius: 50%;">
+                                <strong>\${messageData.author.username}</strong>
+                                <span style="opacity: 0.7; font-size: 0.9em;">\${createdAt}</span>
+                            </div>
+                            <div style="margin-left: 28px;">
+                                \${messageData.content || '<em>No text content</em>'}
+                            </div>
+                            <div style="margin-left: 28px; margin-top: 4px; opacity: 0.7; font-size: 0.9em;">
+                                in #\${messageData.channelName} • \${messageData.guildName}
+                            </div>
+                        \`;
+                        if (originalMessagePreview) originalMessagePreview.style.display = 'block';
+                    }
+                    
+                    function clearReplyPreview() {
+                        currentReplyMessageId = null;
+                        if (originalMessagePreview) originalMessagePreview.style.display = 'none';
+                        updateSubmitButton();
+                    }
+                    
+                    function updateFetchButton() {
+                        if (!fetchMessageBtn) return;
+                        const hasChannel = channelSelect ? channelSelect.value : false;
+                        const hasMessageId = replyMessageId ? replyMessageId.value.trim() : false;
+                        fetchMessageBtn.disabled = !hasChannel || !hasMessageId;
+                    }
+                    
+                    function updateAttachmentPreview() {
+                        if (!attachmentPreview || !attachments) return;
+                        const files = Array.from(attachments.files);
+                        attachmentPreview.innerHTML = '';
+                        
+                        if (files.length > 0) {
+                            files.forEach((file, index) => {
+                                const fileDiv = document.createElement('div');
+                                fileDiv.style.cssText = 'background: rgba(255,255,255,0.1); border-radius: 8px; padding: 0.5rem; margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center;';
+                                fileDiv.innerHTML = \`
+                                    <span style="font-weight: 500;">\${file.name}</span>
+                                    <span style="opacity: 0.7; font-size: 0.9rem;">(\${formatFileSize(file.size)})</span>
+                                \`;
+                                attachmentPreview.appendChild(fileDiv);
+                            });
+                        }
+                    }
+                    
+                    function updateSubmitButton() {
+                        if (!submitBtn) return;
+                        const hasServer = serverSelect ? serverSelect.value : false;
+                        const hasChannel = channelSelect ? channelSelect.value : false;
+                        const hasMessage = messageText ? messageText.value.trim() : false;
+                        const hasAttachments = attachments ? attachments.files.length > 0 : false;
+                        const hasSticker = currentStickerId;
+                        
+                        const canSubmit = hasServer && hasChannel && (hasMessage || hasAttachments || hasSticker);
+                        submitBtn.disabled = !canSubmit;
+                    }
+                    
+                    async function sendMessage() {
+                        if (!serverSelect || !channelSelect) return;
+                        
+                        const formData = new FormData();
+                        formData.append('serverId', serverSelect.value);
+                        formData.append('channelId', channelSelect.value);
+                        formData.append('message', messageText ? messageText.value : '');
+                        
+                        if (currentReplyMessageId) {
+                            formData.append('replyToMessageId', currentReplyMessageId);
+                        }
+                        
+                        if (currentStickerId) {
+                            formData.append('stickerId', currentStickerId);
+                        }
+                        
+                        if (attachments) {
+                            Array.from(attachments.files).forEach(file => {
+                                formData.append('attachments', file);
+                            });
+                        }
+                        
+                        try {
+                            if (btnText) btnText.style.display = 'none';
+                            if (btnLoader) btnLoader.style.display = 'inline';
+                            if (submitBtn) submitBtn.disabled = true;
+                            
+                            const response = await fetch('/api/plugins/message/send', {
+                                method: 'POST',
+                                body: formData
+                            });
+                            
+                            const result = await response.json();
+                            
+                            if (response.ok) {
+                                let messageType = 'Message sent successfully!';
+                                if (currentReplyMessageId && currentStickerId) {
+                                    messageType = 'Reply with sticker sent successfully!';
+                                } else if (currentReplyMessageId) {
+                                    messageType = 'Reply sent successfully!';
+                                } else if (currentStickerId) {
+                                    messageType = 'Sticker sent successfully!';
+                                }
+                                
+                                showNotification(messageType, 'success');
+                                if (messageText) messageText.value = '';
+                                if (attachments) attachments.value = '';
+                                if (replyMessageId) replyMessageId.value = '';
+                                currentStickerId = null;
+                                if (selectedSticker) selectedSticker.style.display = 'none';
+                                updateAttachmentPreview();
+                                clearReplyPreview();
+                                updateSubmitButton();
+                                updateFetchButton();
+                            } else {
+                                throw new Error(result.error || 'Failed to send message');
+                            }
+                        } catch (error) {
+                            console.error('Error sending message:', error);
+                            showNotification(error.message, 'error');
+                        } finally {
+                            if (btnText) btnText.style.display = 'inline';
+                            if (btnLoader) btnLoader.style.display = 'none';
+                            updateSubmitButton();
+                        }
+                    }
+                    
+                    function formatFileSize(bytes) {
+                        if (bytes === 0) return '0 Bytes';
+                        const k = 1024;
+                        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                        const i = Math.floor(Math.log(bytes) / Math.log(k));
+                        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+                    }
+                `
+            };
+        }
+
+        function getWordFilterPluginComponent() {
+            return {
+                html: `
+                    <div class="plugin-container">
+                        <div class="plugin-header">
+                            <h3><span class="plugin-icon">🚫</span> Word Filter</h3>
+                            <p>Automatically detect and filter inappropriate words from messages</p>
+                        </div>
+                        
+                        <form id="wordFilterForm">
+                            <div class="form-group">
+                                <label for="filterServerSelect">Server</label>
+                                <select id="filterServerSelect" required>
+                                    <option value="">Select a server...</option>
+                                </select>
+                            </div>
+                            
+                            <div id="filterSettings" style="display: none;">
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" id="filterEnabled" style="margin-right: 8px;">
+                                        Enable Word Filter
+                                    </label>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="logChannelSelect">Log Channel (Optional)</label>
+                                    <select id="logChannelSelect">
+                                        <option value="">Select a channel for logs...</option>
+                                    </select>
+                                    <small style="opacity: 0.7; display: block; margin-top: 4px;">
+                                        Choose where filtered message logs will be sent
+                                    </small>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="newWord">Add Blocked Word</label>
+                                    <div style="display: flex; gap: 10px;">
+                                        <input type="text" id="newWord" placeholder="Enter word to block...">
+                                        <button type="button" id="addWordBtn" class="glass-btn">Add Word</button>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label>Blocked Words</label>
+                                    <div id="blockedWordsList" style="min-height: 100px; background: rgba(255,255,255,0.05); border-radius: 8px; padding: 10px;">
+                                        <div id="noWordsMessage" style="opacity: 0.6; text-align: center; padding: 20px;">
+                                            No blocked words configured
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <button type="button" id="saveFilterSettings" class="btn-primary">
+                                    <span class="btn-text">Save Settings</span>
+                                    <span class="btn-loader" style="display: none;">Saving...</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                `,
+                script: `
+                    console.log('Loading word filter plugin...');
+                    
+                    const filterServerSelect = document.getElementById('filterServerSelect');
+                    const logChannelSelect = document.getElementById('logChannelSelect');
+                    const filterSettings = document.getElementById('filterSettings');
+                    const filterEnabled = document.getElementById('filterEnabled');
+                    const newWord = document.getElementById('newWord');
+                    const addWordBtn = document.getElementById('addWordBtn');
+                    const blockedWordsList = document.getElementById('blockedWordsList');
+                    const noWordsMessage = document.getElementById('noWordsMessage');
+                    const saveFilterSettings = document.getElementById('saveFilterSettings');
+                    const btnText = saveFilterSettings ? saveFilterSettings.querySelector('.btn-text') : null;
+                    const btnLoader = saveFilterSettings ? saveFilterSettings.querySelector('.btn-loader') : null;
+                    
+                    let currentServerId = null;
+                    let currentSettings = null;
+                    
+                    if (filterServerSelect) {
+                        filterServerSelect.addEventListener('change', function() {
+                            const serverId = this.value;
+                            if (serverId) {
+                                currentServerId = serverId;
+                                loadFilterChannels(serverId);
+                                loadFilterSettings(serverId);
+                                filterSettings.style.display = 'block';
+                            } else {
+                                filterSettings.style.display = 'none';
+                            }
+                        });
+                        
+                        // Load servers
+                        loadFilterServers();
+                    }
+                    
+                    if (addWordBtn) {
+                        addWordBtn.addEventListener('click', addBlockedWord);
+                    }
+                    
+                    if (newWord) {
+                        newWord.addEventListener('keypress', function(e) {
+                            if (e.key === 'Enter') {
+                                addBlockedWord();
+                            }
+                        });
+                    }
+                    
+                    if (saveFilterSettings) {
+                        saveFilterSettings.addEventListener('click', saveSettings);
+                    }
+                    
+                    async function loadFilterServers() {
+                        try {
+                            const response = await fetch('/api/servers');
+                            const servers = await response.json();
+                            
+                            filterServerSelect.innerHTML = '<option value="">Select a server...</option>';
+                            servers.forEach(server => {
+                                const option = document.createElement('option');
+                                option.value = server.id;
+                                option.textContent = server.name;
+                                filterServerSelect.appendChild(option);
+                            });
+                        } catch (error) {
+                            console.error('Error loading servers:', error);
+                            showNotification('Error loading servers', 'error');
+                        }
+                    }
+                    
+                    async function loadFilterChannels(serverId) {
+                        try {
+                            logChannelSelect.innerHTML = '<option value="">Loading...</option>';
+                            const response = await fetch(\`/api/channels/\${serverId}\`);
+                            const channels = await response.json();
+                            
+                            logChannelSelect.innerHTML = '<option value="">Select a channel for logs...</option>';
+                            channels.forEach(channel => {
+                                const option = document.createElement('option');
+                                option.value = channel.id;
+                                option.textContent = \`# \${channel.name}\`;
+                                logChannelSelect.appendChild(option);
+                            });
+                        } catch (error) {
+                            console.error('Error loading channels:', error);
+                            logChannelSelect.innerHTML = '<option value="">Error loading channels</option>';
+                        }
+                    }
+                    
+                    async function loadFilterSettings(serverId) {
+                        try {
+                            const response = await fetch(\`/api/plugins/wordfilter/settings/\${serverId}\`);
+                            const settings = await response.json();
+                            
+                            currentSettings = settings;
+                            filterEnabled.checked = settings.enabled;
+                            
+                            // Load the saved log channel
+                            if (settings.logChannelId && logChannelSelect) {
+                                logChannelSelect.value = settings.logChannelId;
+                            }
+                            
+                            displayBlockedWords(settings.blockedWords || []);
+                        } catch (error) {
+                            console.error('Error loading filter settings:', error);
+                            showNotification('Error loading filter settings', 'error');
+                        }
+                    }
+                    
+                    function displayBlockedWords(words) {
+                        if (!blockedWordsList) return;
+                        
+                        if (words.length === 0) {
+                            blockedWordsList.innerHTML = '<div style="opacity: 0.6; text-align: center; padding: 20px;">No blocked words configured</div>';
+                            return;
+                        }
+                        
+                        blockedWordsList.innerHTML = '';
+                        
+                        words.forEach(word => {
+                            const wordElement = document.createElement('div');
+                            wordElement.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px; margin-bottom: 4px; background: rgba(255,255,255,0.1); border-radius: 6px;';
+                            wordElement.innerHTML = \`
+                                <span style="font-family: monospace;">\${word}</span>
+                                <button type="button" onclick="removeFilterWord('\${word}')" class="glass-btn-small">Remove</button>
+                            \`;
+                            blockedWordsList.appendChild(wordElement);
+                        });
+                    }
+                    
+                    async function addBlockedWord() {
+                        const word = newWord ? newWord.value.trim() : '';
+                        if (!word || !currentServerId) {
+                            showNotification('Please enter a word and select a server', 'error');
+                            return;
+                        }
+                        
+                        try {
+                            const response = await fetch(\`/api/plugins/wordfilter/words/\${currentServerId}\`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({ word })
+                            });
+                            
+                            const result = await response.json();
+                            
+                            if (response.ok) {
+                                newWord.value = '';
+                                displayBlockedWords(result.blockedWords);
+                                currentSettings.blockedWords = result.blockedWords;
+                                showNotification('Word added successfully', 'success');
+                            } else {
+                                throw new Error(result.error || 'Failed to add word');
+                            }
+                        } catch (error) {
+                            console.error('Error adding word:', error);
+                            showNotification(error.message, 'error');
+                        }
+                    }
+                    
+                    window.removeFilterWord = async function(word) {
+                        if (!currentServerId) return;
+                        
+                        try {
+                            const response = await fetch(\`/api/plugins/wordfilter/words/\${currentServerId}/\${encodeURIComponent(word)}\`, {
+                                method: 'DELETE'
+                            });
+                            
+                            const result = await response.json();
+                            
+                            if (response.ok) {
+                                displayBlockedWords(result.blockedWords);
+                                currentSettings.blockedWords = result.blockedWords;
+                                showNotification('Word removed successfully', 'success');
+                            } else {
+                                throw new Error(result.error || 'Failed to remove word');
+                            }
+                        } catch (error) {
+                            console.error('Error removing word:', error);
+                            showNotification(error.message, 'error');
+                        }
+                    };
+                    
+                    async function saveSettings() {
+                        if (!currentServerId) {
+                            showNotification('Please select a server first', 'error');
+                            return;
+                        }
+                        
+                        try {
+                            if (btnText) btnText.style.display = 'none';
+                            if (btnLoader) btnLoader.style.display = 'inline';
+                            if (saveFilterSettings) saveFilterSettings.disabled = true;
+                            
+                            const settings = {
+                                enabled: filterEnabled ? filterEnabled.checked : false,
+                                logChannelId: logChannelSelect ? logChannelSelect.value || null : null,
+                                blockedWords: currentSettings?.blockedWords || []
+                            };
+                            
+                            const response = await fetch(\`/api/plugins/wordfilter/settings/\${currentServerId}\`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify(settings)
+                            });
+                            
+                            const result = await response.json();
+                            
+                            if (response.ok) {
+                                showNotification('Filter settings saved successfully!', 'success');
+                                currentSettings = settings;
+                            } else {
+                                throw new Error(result.error || 'Failed to save settings');
+                            }
+                        } catch (error) {
+                            console.error('Error saving settings:', error);
+                            showNotification(error.message, 'error');
+                        } finally {
+                            if (btnText) btnText.style.display = 'inline';
+                            if (btnLoader) btnLoader.style.display = 'none';
+                            if (saveFilterSettings) saveFilterSettings.disabled = false;
+                        }
+                    }
+                `
+            };
+        }
+
+        // Initialize the application
+        async function loadUser() {
+            try {
+                const response = await fetch('/api/user');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                currentUser = await response.json();
+                
+                const username = document.getElementById('username');
+                const userAvatar = document.getElementById('userAvatar');
+                
+                if (username) username.textContent = currentUser.username;
+                
+                if (userAvatar) {
+                    if (currentUser.avatar) {
+                        userAvatar.innerHTML = `<img src="https://cdn.discordapp.com/avatars/${currentUser.id}/${currentUser.avatar}.png" width="40" height="40" style="border-radius: 50%;">`;
+                    } else {
+                        userAvatar.textContent = currentUser.username.charAt(0).toUpperCase();
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading user:', error);
+                showNotification('Error loading user information', 'error');
+            }
+        }
+
+        async function loadPlugins() {
+            try {
+                // Load message plugin
+                const messagePlugin = getMessagePluginComponent();
+                const messageContainer = document.getElementById('messagePluginContainer');
+                if (messageContainer) {
+                    messageContainer.innerHTML = messagePlugin.html;
+                    console.log('Message plugin HTML loaded');
+                }
+                
+                // Load word filter plugin
+                const wordFilterPlugin = getWordFilterPluginComponent();
+                const wordFilterContainer = document.getElementById('wordFilterPluginContainer');
+                if (wordFilterContainer) {
+                    wordFilterContainer.innerHTML = wordFilterPlugin.html;
+                    console.log('Word filter plugin HTML loaded');
+                }
+                
+                // Execute plugin scripts
+                setTimeout(() => {
+                    try {
+                        eval(messagePlugin.script);
+                        console.log('Message plugin script executed');
+                    } catch (error) {
+                        console.error('Error executing message plugin script:', error);
+                    }
+                    
+                    try {
+                        eval(wordFilterPlugin.script);
+                        console.log('Word filter plugin script executed');
+                    } catch (error) {
+                        console.error('Error executing word filter plugin script:', error);
+                    }
+                }, 100);
+                
+            } catch (error) {
+                console.error('Error loading plugins:', error);
+                showNotification('Error loading plugins', 'error');
+            }
+        }
+
+        function setupNavigation() {
+            const navLinks = document.querySelectorAll('.nav-link');
+            const featureCards = document.querySelectorAll('.feature-card');
+            const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+            const sidebar = document.getElementById('sidebar');
+
+            // Handle navigation clicks
+            navLinks.forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const page = this.getAttribute('data-page');
+                    switchToPage(page);
+                    
+                    // Close mobile menu
+                    if (sidebar) sidebar.classList.remove('mobile-open');
+                });
+            });
+
+            // Handle feature card clicks
+            featureCards.forEach(card => {
+                card.addEventListener('click', function() {
+                    const page = this.getAttribute('data-page');
+                    switchToPage(page);
+                });
+            });
+
+            // Mobile menu toggle
+            if (mobileMenuBtn) {
+                mobileMenuBtn.addEventListener('click', function() {
+                    if (sidebar) sidebar.classList.toggle('mobile-open');
+                });
+            }
+
+            // Close mobile menu when clicking outside
+            document.addEventListener('click', function(e) {
+                if (sidebar && !sidebar.contains(e.target) && mobileMenuBtn && !mobileMenuBtn.contains(e.target)) {
+                    sidebar.classList.remove('mobile-open');
+                }
+            });
+        }
+
+        // Initialize everything when DOM is loaded
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('DOM loaded, initializing...');
+            
+            await loadUser();
+            await loadPlugins();
+            setupNavigation();
+            
+            console.log('Initialization complete');
+        });
+    </script>
+</body>
+</html>
