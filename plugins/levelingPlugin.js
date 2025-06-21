@@ -150,38 +150,42 @@ class LevelingPlugin {
         await this.saveData(data);
         
         // Check for level up
-        if (userGuildData.level > oldLevel) {
-            await this.handleLevelUp(userId, guildId, userGuildData.level, oldLevel);
-        }
+if (userGuildData.level > oldLevel) {
+    await this.handleLevelUp(userId, guildId, userGuildData.level, oldLevel);
+}
         
         return userGuildData;
     }
 
     async handleLevelUp(userId, guildId, newLevel, oldLevel) {
-        try {
-            const settings = await this.loadSettings();
-            const guildSettings = settings[guildId];
+    try {
+        const settings = await this.loadSettings();
+        const guildSettings = settings[guildId];
+        
+        if (guildSettings && guildSettings.levelUpChannel) {
+            const channel = this.client.channels.cache.get(guildSettings.levelUpChannel);
+            const user = await this.client.users.fetch(userId);
             
-            if (guildSettings && guildSettings.levelUpChannel) {
-                const channel = this.client.channels.cache.get(guildSettings.levelUpChannel);
-                const user = await this.client.users.fetch(userId);
+            if (channel && user) {
+                const embed = {
+                    color: 0x00ff00,
+                    title: '🎉 Level Up!',
+                    description: `**${user.username}** leveled up from **${oldLevel}** to **${newLevel}**!`,
+                    thumbnail: { url: user.displayAvatarURL() },
+                    timestamp: new Date().toISOString()
+                };
                 
-                if (channel && user) {
-                    const embed = {
-                        color: 0x00ff00,
-                        title: '🎉 Level Up!',
-                        description: `**${user.username}** leveled up from **${oldLevel}** to **${newLevel}**!`,
-                        thumbnail: { url: user.displayAvatarURL() },
-                        timestamp: new Date().toISOString()
-                    };
-                    
-                    await channel.send({ embeds: [embed] });
-                }
+                await channel.send({ embeds: [embed] });
             }
-        } catch (error) {
-            console.error('Error handling level up:', error);
         }
+        
+        // Emit level up event for other plugins (like auto-role) to listen to
+        this.client.emit('levelUp', userId, guildId, newLevel, oldLevel);
+        
+    } catch (error) {
+        console.error('Error handling level up:', error);
     }
+}
 
     setupDiscordListeners() {
         // Message XP
