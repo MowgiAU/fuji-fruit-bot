@@ -5,7 +5,7 @@ class ChannelRulesPlugin {
     constructor(app, client, ensureAuthenticated, hasAdminPermissions) {
         this.name = 'Channel Rules';
         this.description = 'Set up automated rules for channels with custom conditions and actions';
-        this.version = '1.0.0';
+        this.version = '1.1.0';
         this.enabled = true;
         
         this.app = app;
@@ -163,6 +163,7 @@ class ChannelRulesPlugin {
 
     async checkRule(message, rule) {
         switch (rule.type) {
+            // Requirement rules
             case 'must_contain_audio':
                 return this.checkMustContainAudio(message, rule);
             
@@ -175,6 +176,26 @@ class ChannelRulesPlugin {
             case 'must_contain_file':
                 return this.checkMustContainFile(message, rule);
             
+            // Blocking rules - NEW
+            case 'block_audio':
+                return this.checkBlockAudio(message, rule);
+            
+            case 'block_images':
+                return this.checkBlockImages(message, rule);
+            
+            case 'block_videos':
+                return this.checkBlockVideos(message, rule);
+            
+            case 'block_all_files':
+                return this.checkBlockAllFiles(message, rule);
+            
+            case 'block_file_extensions':
+                return this.checkBlockFileExtensions(message, rule);
+            
+            case 'block_large_files':
+                return this.checkBlockLargeFiles(message, rule);
+            
+            // Existing rules
             case 'blocked_domains':
                 return this.checkBlockedDomains(message, rule);
             
@@ -195,6 +216,7 @@ class ChannelRulesPlugin {
         }
     }
 
+    // Existing requirement methods...
     checkMustContainAudio(message, rule) {
         const audioExtensions = ['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a', 'wma'];
         const hasAudio = message.attachments.some(attachment => {
@@ -253,6 +275,120 @@ class ChannelRulesPlugin {
         return null;
     }
 
+    // NEW BLOCKING METHODS
+    checkBlockAudio(message, rule) {
+        const audioExtensions = ['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a', 'wma'];
+        const hasAudio = message.attachments.some(attachment => {
+            const ext = attachment.name.split('.').pop().toLowerCase();
+            return audioExtensions.includes(ext);
+        });
+        
+        if (hasAudio) {
+            const audioFile = Array.from(message.attachments.values()).find(attachment => {
+                const ext = attachment.name.split('.').pop().toLowerCase();
+                return audioExtensions.includes(ext);
+            });
+            
+            return {
+                type: 'blocked_audio',
+                message: rule.customMessage || 'Audio files are not allowed in this channel.',
+                fileName: audioFile.name
+            };
+        }
+        return null;
+    }
+
+    checkBlockImages(message, rule) {
+        const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'];
+        const hasImage = message.attachments.some(attachment => {
+            const ext = attachment.name.split('.').pop().toLowerCase();
+            return imageExtensions.includes(ext);
+        });
+        
+        if (hasImage) {
+            const imageFile = Array.from(message.attachments.values()).find(attachment => {
+                const ext = attachment.name.split('.').pop().toLowerCase();
+                return imageExtensions.includes(ext);
+            });
+            
+            return {
+                type: 'blocked_image',
+                message: rule.customMessage || 'Images are not allowed in this channel.',
+                fileName: imageFile.name
+            };
+        }
+        return null;
+    }
+
+    checkBlockVideos(message, rule) {
+        const videoExtensions = ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm', 'mkv'];
+        const hasVideo = message.attachments.some(attachment => {
+            const ext = attachment.name.split('.').pop().toLowerCase();
+            return videoExtensions.includes(ext);
+        });
+        
+        if (hasVideo) {
+            const videoFile = Array.from(message.attachments.values()).find(attachment => {
+                const ext = attachment.name.split('.').pop().toLowerCase();
+                return videoExtensions.includes(ext);
+            });
+            
+            return {
+                type: 'blocked_video',
+                message: rule.customMessage || 'Videos are not allowed in this channel.',
+                fileName: videoFile.name
+            };
+        }
+        return null;
+    }
+
+    checkBlockAllFiles(message, rule) {
+        if (message.attachments.size > 0) {
+            const firstFile = Array.from(message.attachments.values())[0];
+            return {
+                type: 'blocked_all_files',
+                message: rule.customMessage || 'File attachments are not allowed in this channel.',
+                fileName: firstFile.name
+            };
+        }
+        return null;
+    }
+
+    checkBlockFileExtensions(message, rule) {
+        const blockedExtensions = (rule.extensions || []).map(ext => ext.toLowerCase());
+        
+        for (const attachment of message.attachments.values()) {
+            const ext = attachment.name.split('.').pop().toLowerCase();
+            if (blockedExtensions.includes(ext)) {
+                return {
+                    type: 'blocked_extension',
+                    message: rule.customMessage || `Files with .${ext} extension are not allowed in this channel.`,
+                    fileName: attachment.name,
+                    extension: ext
+                };
+            }
+        }
+        return null;
+    }
+
+    checkBlockLargeFiles(message, rule) {
+        const maxSize = rule.maxSize || 10 * 1024 * 1024; // Default 10MB
+        
+        for (const attachment of message.attachments.values()) {
+            if (attachment.size > maxSize) {
+                return {
+                    type: 'file_too_large',
+                    message: rule.customMessage || `Files larger than ${this.formatFileSize(maxSize)} are not allowed in this channel.`,
+                    fileName: attachment.name,
+                    fileSize: attachment.size,
+                    maxSize: maxSize
+                };
+            }
+        }
+        return null;
+    }
+
+    // Existing text/domain/length checking methods...
     checkBlockedDomains(message, rule) {
         const blockedDomains = rule.domains || [];
         const content = message.content.toLowerCase();
@@ -369,6 +505,15 @@ class ChannelRulesPlugin {
                         }
                     };
                     
+                    // Add file info if relevant
+                    if (violation.fileName) {
+                        dmEmbed.fields.push({
+                            name: 'Blocked File',
+                            value: violation.fileName,
+                            inline: true
+                        });
+                    }
+                    
                     await message.author.send({ embeds: [dmEmbed] });
                 } catch (dmError) {
                     console.log(`Could not send DM to ${message.author.tag}: ${dmError.message}`);
@@ -460,6 +605,30 @@ class ChannelRulesPlugin {
                         });
                     }
                     
+                    if (violation.fileName) {
+                        logEmbed.fields.push({
+                            name: 'Blocked File',
+                            value: violation.fileName,
+                            inline: true
+                        });
+                    }
+                    
+                    if (violation.extension) {
+                        logEmbed.fields.push({
+                            name: 'Blocked Extension',
+                            value: `.${violation.extension}`,
+                            inline: true
+                        });
+                    }
+                    
+                    if (violation.fileSize && violation.maxSize) {
+                        logEmbed.fields.push({
+                            name: 'File Size',
+                            value: `${this.formatFileSize(violation.fileSize)} (limit: ${this.formatFileSize(violation.maxSize)})`,
+                            inline: true
+                        });
+                    }
+                    
                     await logChannel.send({ embeds: [logEmbed] });
                 }
             }
@@ -473,10 +642,21 @@ class ChannelRulesPlugin {
 
     getRuleTypeDisplay(type) {
         const displayMap = {
+            // Requirement rules
             'must_contain_audio': 'Must Contain Audio',
             'must_contain_image': 'Must Contain Image',
             'must_contain_video': 'Must Contain Video',
             'must_contain_file': 'Must Contain File',
+            
+            // Blocking rules
+            'block_audio': 'Block Audio Files',
+            'block_images': 'Block Images',
+            'block_videos': 'Block Videos',
+            'block_all_files': 'Block All Files',
+            'block_file_extensions': 'Block File Extensions',
+            'block_large_files': 'Block Large Files',
+            
+            // Text/content rules
             'blocked_domains': 'Blocked Domains',
             'required_text': 'Required Text',
             'blocked_text': 'Blocked Text',
@@ -578,22 +758,34 @@ class ChannelRulesPlugin {
 
                 <!-- Rule Creation Modal -->
                 <div id="ruleModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center;">
-                    <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); border-radius: 15px; padding: 2rem; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; border: 1px solid rgba(255,255,255,0.2);">
+                    <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); border-radius: 15px; padding: 2rem; max-width: 700px; width: 90%; max-height: 80vh; overflow-y: auto; border: 1px solid rgba(255,255,255,0.2);">
                         <h3 style="margin-bottom: 1rem; color: white;">Create New Rule</h3>
                         
                         <div class="form-group">
                             <label for="ruleType">Rule Type</label>
                             <select id="ruleType" class="form-control">
                                 <option value="">Select rule type...</option>
-                                <option value="must_contain_audio">Must Contain Audio File</option>
-                                <option value="must_contain_image">Must Contain Image</option>
-                                <option value="must_contain_video">Must Contain Video</option>
-                                <option value="must_contain_file">Must Contain Any File</option>
-                                <option value="blocked_domains">Block Specific Domains</option>
-                                <option value="required_text">Require Specific Text</option>
-                                <option value="blocked_text">Block Specific Text</option>
-                                <option value="min_length">Minimum Message Length</option>
-                                <option value="max_length">Maximum Message Length</option>
+                                <optgroup label="File Requirements">
+                                    <option value="must_contain_audio">Must Contain Audio File</option>
+                                    <option value="must_contain_image">Must Contain Image</option>
+                                    <option value="must_contain_video">Must Contain Video</option>
+                                    <option value="must_contain_file">Must Contain Any File</option>
+                                </optgroup>
+                                <optgroup label="File Blocking">
+                                    <option value="block_audio">Block Audio Files</option>
+                                    <option value="block_images">Block Images</option>
+                                    <option value="block_videos">Block Videos</option>
+                                    <option value="block_all_files">Block All File Attachments</option>
+                                    <option value="block_file_extensions">Block Specific File Extensions</option>
+                                    <option value="block_large_files">Block Large Files</option>
+                                </optgroup>
+                                <optgroup label="Content Rules">
+                                    <option value="blocked_domains">Block Specific Domains</option>
+                                    <option value="required_text">Require Specific Text</option>
+                                    <option value="blocked_text">Block Specific Text</option>
+                                    <option value="min_length">Minimum Message Length</option>
+                                    <option value="max_length">Maximum Message Length</option>
+                                </optgroup>
                             </select>
                         </div>
                         
@@ -626,6 +818,30 @@ class ChannelRulesPlugin {
                             <div id="textsList" style="margin-top: 0.5rem;"></div>
                         </div>
                         
+                        <div id="extensionsConfig" style="display: none;" class="form-group">
+                            <label>Blocked File Extensions</label>
+                            <input type="text" id="extensionInput" class="form-control" placeholder="Enter extension (e.g., exe, zip, rar)" style="margin-bottom: 0.5rem;">
+                            <button type="button" id="addExtensionBtn" class="glass-btn">Add Extension</button>
+                            <div id="extensionsList" style="margin-top: 0.5rem;"></div>
+                            <small style="opacity: 0.7; display: block; margin-top: 4px;">
+                                Enter file extensions without the dot (e.g., "exe" not ".exe")
+                            </small>
+                        </div>
+                        
+                        <div id="fileSizeConfig" style="display: none;" class="form-group">
+                            <label for="maxFileSize">Maximum File Size</label>
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                                <input type="number" id="maxFileSize" class="form-control" min="1" max="25" placeholder="Size" style="flex: 1;">
+                                <select id="fileSizeUnit" class="form-control" style="flex: 0 0 auto; width: auto;">
+                                    <option value="KB">KB</option>
+                                    <option value="MB" selected>MB</option>
+                                </select>
+                            </div>
+                            <small style="opacity: 0.7; display: block; margin-top: 4px;">
+                                Files larger than this size will be blocked
+                            </small>
+                        </div>
+                        
                         <div id="lengthConfig" style="display: none;" class="form-group">
                             <label for="lengthValue" id="lengthLabel">Length</label>
                             <input type="number" id="lengthValue" class="form-control" min="1" max="2000" placeholder="Enter length...">
@@ -639,7 +855,7 @@ class ChannelRulesPlugin {
                 </div>
             `,
             script: `
-                console.log('Loading channel rules plugin...');
+                console.log('Loading enhanced channel rules plugin...');
                 
                 // Wrap in IIFE to avoid variable conflicts
                 (function() {
@@ -667,14 +883,26 @@ class ChannelRulesPlugin {
                     // Dynamic config elements
                     const domainsConfig = document.getElementById('domainsConfig');
                     const textsConfig = document.getElementById('textsConfig');
+                    const extensionsConfig = document.getElementById('extensionsConfig');
+                    const fileSizeConfig = document.getElementById('fileSizeConfig');
                     const lengthConfig = document.getElementById('lengthConfig');
+                    
                     const domainInput = document.getElementById('domainInput');
                     const addDomainBtn = document.getElementById('addDomainBtn');
                     const domainsList = document.getElementById('domainsList');
+                    
                     const textInput = document.getElementById('textInput');
                     const addTextBtn = document.getElementById('addTextBtn');
                     const textsList = document.getElementById('textsList');
                     const textsLabel = document.getElementById('textsLabel');
+                    
+                    const extensionInput = document.getElementById('extensionInput');
+                    const addExtensionBtn = document.getElementById('addExtensionBtn');
+                    const extensionsList = document.getElementById('extensionsList');
+                    
+                    const maxFileSize = document.getElementById('maxFileSize');
+                    const fileSizeUnit = document.getElementById('fileSizeUnit');
+                    
                     const lengthValue = document.getElementById('lengthValue');
                     const lengthLabel = document.getElementById('lengthLabel');
                     
@@ -683,6 +911,7 @@ class ChannelRulesPlugin {
                     let currentRules = [];
                     let tempDomains = [];
                     let tempTexts = [];
+                    let tempExtensions = [];
                     let editingRuleIndex = -1;
                     
                     if (rulesServerSelect) {
@@ -755,6 +984,7 @@ class ChannelRulesPlugin {
                         });
                     }
                     
+                    // Domain management
                     if (addDomainBtn) {
                         addDomainBtn.addEventListener('click', addDomain);
                     }
@@ -767,6 +997,7 @@ class ChannelRulesPlugin {
                         });
                     }
                     
+                    // Text management
                     if (addTextBtn) {
                         addTextBtn.addEventListener('click', addText);
                     }
@@ -775,6 +1006,19 @@ class ChannelRulesPlugin {
                         textInput.addEventListener('keypress', function(e) {
                             if (e.key === 'Enter') {
                                 addText();
+                            }
+                        });
+                    }
+                    
+                    // Extension management
+                    if (addExtensionBtn) {
+                        addExtensionBtn.addEventListener('click', addExtension);
+                    }
+                    
+                    if (extensionInput) {
+                        extensionInput.addEventListener('keypress', function(e) {
+                            if (e.key === 'Enter') {
+                                addExtension();
                             }
                         });
                     }
@@ -891,10 +1135,21 @@ class ChannelRulesPlugin {
                     
                     function getRuleDisplayInfo(rule) {
                         const typeDisplays = {
+                            // File requirement rules
                             'must_contain_audio': { title: 'Must Contain Audio', description: 'Messages must include audio files' },
                             'must_contain_image': { title: 'Must Contain Image', description: 'Messages must include image files' },
                             'must_contain_video': { title: 'Must Contain Video', description: 'Messages must include video files' },
                             'must_contain_file': { title: 'Must Contain File', description: 'Messages must include any file attachment' },
+                            
+                            // File blocking rules
+                            'block_audio': { title: 'Block Audio', description: 'Audio files are blocked' },
+                            'block_images': { title: 'Block Images', description: 'Image files are blocked' },
+                            'block_videos': { title: 'Block Videos', description: 'Video files are blocked' },
+                            'block_all_files': { title: 'Block All Files', description: 'All file attachments are blocked' },
+                            'block_file_extensions': { title: 'Block Extensions', description: \`Blocked: .\${(rule.extensions || []).join(', .')}\` },
+                            'block_large_files': { title: 'Block Large Files', description: \`Files over \${formatFileSize(rule.maxSize || 10485760)} are blocked\` },
+                            
+                            // Content rules
                             'blocked_domains': { title: 'Blocked Domains', description: \`Blocked: \${(rule.domains || []).join(', ')}\` },
                             'required_text': { title: 'Required Text', description: \`Must contain: \${(rule.texts || []).join(', ')}\` },
                             'blocked_text': { title: 'Blocked Text', description: \`Cannot contain: \${(rule.texts || []).join(', ')}\` },
@@ -912,6 +1167,14 @@ class ChannelRulesPlugin {
                             'delete_and_dm': 'Delete & DM'
                         };
                         return displayMap[action] || action;
+                    }
+                    
+                    function formatFileSize(bytes) {
+                        if (bytes === 0) return '0 Bytes';
+                        const k = 1024;
+                        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                        const i = Math.floor(Math.log(bytes) / Math.log(k));
+                        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
                     }
                     
                     window.editChannelRule = function(index) {
@@ -933,6 +1196,17 @@ class ChannelRulesPlugin {
                         if ((rule.type === 'required_text' || rule.type === 'blocked_text') && rule.texts) {
                             tempTexts = [...rule.texts];
                             displayTexts();
+                        }
+                        
+                        if (rule.type === 'block_file_extensions' && rule.extensions) {
+                            tempExtensions = [...rule.extensions];
+                            displayExtensions();
+                        }
+                        
+                        if (rule.type === 'block_large_files' && rule.maxSize) {
+                            const sizeInMB = rule.maxSize / (1024 * 1024);
+                            if (maxFileSize) maxFileSize.value = sizeInMB;
+                            if (fileSizeUnit) fileSizeUnit.value = 'MB';
                         }
                         
                         if ((rule.type === 'min_length' || rule.type === 'max_length') && lengthValue) {
@@ -960,6 +1234,9 @@ class ChannelRulesPlugin {
                                 if (customMessage) customMessage.value = '';
                                 tempDomains = [];
                                 tempTexts = [];
+                                tempExtensions = [];
+                                if (maxFileSize) maxFileSize.value = '';
+                                if (fileSizeUnit) fileSizeUnit.value = 'MB';
                                 updateRuleConfig('');
                             }
                         }
@@ -976,6 +1253,8 @@ class ChannelRulesPlugin {
                         // Hide all config sections
                         if (domainsConfig) domainsConfig.style.display = 'none';
                         if (textsConfig) textsConfig.style.display = 'none';
+                        if (extensionsConfig) extensionsConfig.style.display = 'none';
+                        if (fileSizeConfig) fileSizeConfig.style.display = 'none';
                         if (lengthConfig) lengthConfig.style.display = 'none';
                         
                         // Show relevant config section
@@ -997,6 +1276,13 @@ class ChannelRulesPlugin {
                                     if (textsLabel) textsLabel.textContent = 'Blocked Text Phrases';
                                 }
                                 displayTexts();
+                                break;
+                            case 'block_file_extensions':
+                                if (extensionsConfig) extensionsConfig.style.display = 'block';
+                                displayExtensions();
+                                break;
+                            case 'block_large_files':
+                                if (fileSizeConfig) fileSizeConfig.style.display = 'block';
                                 break;
                             case 'min_length':
                                 if (lengthConfig) {
@@ -1059,6 +1345,29 @@ class ChannelRulesPlugin {
                         });
                     }
                     
+                    function addExtension() {
+                        const extension = extensionInput ? extensionInput.value.trim().toLowerCase().replace('.', '') : '';
+                        if (extension && !tempExtensions.includes(extension)) {
+                            tempExtensions.push(extension);
+                            if (extensionInput) extensionInput.value = '';
+                            displayExtensions();
+                        }
+                    }
+                    
+                    function displayExtensions() {
+                        if (!extensionsList) return;
+                        extensionsList.innerHTML = '';
+                        tempExtensions.forEach((extension, index) => {
+                            const extensionElement = document.createElement('div');
+                            extensionElement.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; margin-bottom: 4px; background: rgba(255,255,255,0.1); border-radius: 4px;';
+                            extensionElement.innerHTML = \`
+                                <span>.\${extension}</span>
+                                <button type="button" onclick="window.removeTempExtension(\${index})" class="glass-btn-small">Remove</button>
+                            \`;
+                            extensionsList.appendChild(extensionElement);
+                        });
+                    }
+                    
                     window.removeTempDomain = function(index) {
                         tempDomains.splice(index, 1);
                         displayDomains();
@@ -1067,6 +1376,11 @@ class ChannelRulesPlugin {
                     window.removeTempText = function(index) {
                         tempTexts.splice(index, 1);
                         displayTexts();
+                    };
+                    
+                    window.removeTempExtension = function(index) {
+                        tempExtensions.splice(index, 1);
+                        displayExtensions();
                     };
                     
                     function saveCurrentRule() {
@@ -1101,6 +1415,26 @@ class ChannelRulesPlugin {
                                     return;
                                 }
                                 rule.texts = [...tempTexts];
+                                break;
+                            case 'block_file_extensions':
+                                if (tempExtensions.length === 0) {
+                                    showNotification('Please add at least one file extension', 'error');
+                                    return;
+                                }
+                                rule.extensions = [...tempExtensions];
+                                break;
+                            case 'block_large_files':
+                                const size = maxFileSize ? parseFloat(maxFileSize.value) : 0;
+                                const unit = fileSizeUnit ? fileSizeUnit.value : 'MB';
+                                
+                                if (!size || size <= 0) {
+                                    showNotification('Please enter a valid file size', 'error');
+                                    return;
+                                }
+                                
+                                // Convert to bytes
+                                const sizeInBytes = unit === 'KB' ? size * 1024 : size * 1024 * 1024;
+                                rule.maxSize = sizeInBytes;
                                 break;
                             case 'min_length':
                             case 'max_length':
@@ -1200,4 +1534,3 @@ class ChannelRulesPlugin {
 }
 
 module.exports = ChannelRulesPlugin;
-                
