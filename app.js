@@ -2,7 +2,7 @@ const express = require('express');
 const session = require('express-session');
 const passport = require('passport');
 const DiscordStrategy = require('passport-discord').Strategy;
-const { Client, GatewayIntentBits, PermissionsBitField } = require('discord.js');
+const { Client, GatewayIntentBits, PermissionsBitField, ChannelType } = require('discord.js');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -201,7 +201,11 @@ app.get('/api/channels/:serverId', ensureAuthenticated, async (req, res) => {
         }
         
         const channels = guild.channels.cache
-            .filter(channel => channel.type === 0) // Text channels only
+            // 1. Filter for text channels using the ChannelType enum
+            .filter(channel => channel.type === ChannelType.GuildText) 
+            // 2. Sort the channels by their position property (This is the fix!)
+            .sort((a, b) => a.position - b.position)
+            // 3. Map the sorted channels to the format your frontend expects
             .map(channel => ({
                 id: channel.id,
                 name: channel.name
