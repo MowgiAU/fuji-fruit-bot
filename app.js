@@ -21,7 +21,10 @@ const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildVoiceStates, // Needed for voice XP in levelingPlugin
+        GatewayIntentBits.GuildMembers,     // Needed for this new plugin and auto-role
+        GatewayIntentBits.GuildMessageReactions, // Needed for reaction roles
     ]
 });
 

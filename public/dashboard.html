@@ -50,15 +50,23 @@
                 <a class="nav-link" data-page="channel-rules">
                     <span class="sidebar-icon">⚖️</span>
                     <span>Channel Rules</span>
-                    </a>
+                </a>
 			</li>
         
 			<li>
                 <a class="nav-link" data-page="auto-role">
                     <span class="sidebar-icon">🎭</span>
                     <span>Auto Role System</span>
-                    </a>
+                </a>
 			</li>
+            <!-- NEW: Genre Discovery Nav Link -->
+            <li>
+                <a class="nav-link" data-page="genre-discovery">
+                    <span class="sidebar-icon">🎶</span>
+                    <span>Genre Discovery</span>
+                </a>
+			</li>
+        </ul>
     </div>
 
     <div class="main-content">
@@ -104,54 +112,28 @@
 							<h4>Auto-Role System</h4>
 							<p style="opacity: 0.7; font-size: 0.9rem;">Automatic role assignment, reaction roles, and level-based roles</p>
 						</div>
+
+                        <!-- NEW: Genre Discovery Feature Card -->
+                        <div class="feature-card" data-page="genre-discovery">
+                            <div style="font-size: 2rem; margin-bottom: 0.5rem;">🎶</div>
+                            <h4>Genre Discovery</h4>
+                            <p style="opacity: 0.7; font-size: 0.9rem;">Helps music producers share and discover each other’s genres and setups</p>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Message Sender Page -->
-            <div id="message-sender-page" class="plugin-page">
-                <div class="welcome-section">
-                    <h1 class="welcome-title">💬 Message Sender</h1>
-                    <p class="welcome-subtitle">Send messages to your Discord channels with advanced features</p>
-                </div>
-                <div id="messagePluginContainer"></div>
-            </div>
-
-            <!-- Word Filter Page -->
-            <div id="word-filter-page" class="plugin-page">
-                <div class="welcome-section">
-                    <h1 class="welcome-title">🚫 Word Filter</h1>
-                    <p class="welcome-subtitle">Automatically detect and filter inappropriate words from messages</p>
-                </div>
-                <div id="wordFilterPluginContainer"></div>
-            </div>
-
-            <!-- Leveling Page -->
-            <div id="leveling-page" class="plugin-page">
-                <div class="welcome-section">
-                    <h1 class="welcome-title">📈 Leveling System</h1>
-                    <p class="welcome-subtitle">Manage XP, levels, and leaderboards for your server</p>
-                </div>
-                <div id="levelingPluginContainer"></div>
-            </div>
+            <!-- Page Containers -->
+            <div id="message-sender-page" class="plugin-page"><div id="messagePluginContainer"></div></div>
+            <div id="word-filter-page" class="plugin-page"><div id="wordFilterPluginContainer"></div></div>
+            <div id="leveling-page" class="plugin-page"><div id="levelingPluginContainer"></div></div>
+			<div id="channel-rules-page" class="plugin-page"><div id="channelRulesPluginContainer"></div></div>
+			<div id="auto-role-page" class="plugin-page"><div id="autoRolePluginContainer"></div></div>
 			
-			<!-- Channel Rules Page -->
-			<div id="channel-rules-page" class="plugin-page">
-                <div class="welcome-section">
-                    <h1 class="welcome-title">⚖️ Channel Rules</h1>
-                    <p class="welcome-subtitle">Set up automated rules for channels with custom conditions and actions</p>
-                </div>
-                    <div id="channelRulesPluginContainer"></div>
+			<!-- NEW: Genre Discovery Page Container -->
+			<div id="genre-discovery-page" class="plugin-page">
+                <div id="genreDiscoveryPluginContainer"></div>
             </div>
-			
-			<!-- Auto Role Page -->
-			<div id="auto-role-page" class="plugin-page">
-				<div class="welcome-section">
-					<h1 class="welcome-title">🎭 Auto-Role System</h1>
-					<p class="welcome-subtitle">Manage automatic role assignment, reaction roles, and level-based roles</p>
-			</div>
-				<div id="autoRolePluginContainer"></div>
-			</div>
         </div>
     </div>
 
