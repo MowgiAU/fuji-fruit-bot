@@ -1,5 +1,6 @@
 const fs = require('fs').promises;
 const path = require('path');
+const { SlashCommandBuilder } = require('@discordjs/builders');
 
 class GenreDiscoveryPlugin {
     constructor(app, client, ensureAuthenticated, hasAdminPermissions) {
@@ -18,6 +19,7 @@ class GenreDiscoveryPlugin {
 
         this.initializeData();
         this.setupRoutes();
+		this.setupSlashCommands();
         
         console.log('Genre Discovery plugin loaded successfully!');
     }
@@ -124,6 +126,171 @@ class GenreDiscoveryPlugin {
             }
         });
     }
+	
+	getUserData(data, guildId, userId) {
+        if (!data[guildId]) {
+            data[guildId] = {};
+        }
+        if (!data[guildId][userId]) {
+            data[guildId][userId] = { genres: [], daws: [] };
+        }
+        return data[guildId][userId];
+    }
+
+    async logTagUpdate(interaction, user, action, type, tags) {
+        const settings = await this.loadSettings();
+        const guildSettings = settings[interaction.guildId];
+
+        if (guildSettings && guildSettings.logChannelId) {
+            const logChannel = this.client.channels.cache.get(guildSettings.logChannelId);
+            if (logChannel) {
+                const tagString = tags.map(t => `**${t}**`).join(', ');
+                const embed = {
+                    color: 0x2ECC71,
+                    description: `**${user.username}** ${action} ${tagString} ${action === 'added' ? 'to' : 'from'} their ${type}.`,
+                    timestamp: new Date().toISOString()
+                };
+                await logChannel.send({ embeds: [embed] });
+            }
+        }
+    }
+
+    setupSlashCommands() {
+        this.client.once('ready', async () => {
+            try {
+                const commands = [
+                    new SlashCommandBuilder()
+                        .setName('set')
+                        .setDescription('Set your genre or software tags.')
+                        .addSubcommand(subcommand =>
+                            subcommand
+                                .setName('genre')
+                                .setDescription('Set your genre(s). Separate multiple with commas.')
+                                .addStringOption(option => option.setName('tags').setDescription('e.g., Trap, Lo-fi, DnB').setRequired(true)))
+                        .addSubcommand(subcommand =>
+                            subcommand
+                                .setName('daw')
+                                .setDescription('Set your software/DAW(s). Separate multiple with commas.')
+                                .addStringOption(option => option.setName('tags').setDescription('e.g., FL Studio, Ableton').setRequired(true))),
+                    new SlashCommandBuilder()
+                        .setName('find')
+                        .setDescription('Find producers by genre or software.')
+                        .addSubcommand(subcommand =>
+                            subcommand
+                                .setName('genre')
+                                .setDescription('Find users by genre.')
+                                .addStringOption(option => option.setName('tag').setDescription('The genre to search for.').setRequired(true)))
+                        .addSubcommand(subcommand =>
+                            subcommand
+                                .setName('daw')
+                                .setDescription('Find users by software/DAW.')
+                                .addStringOption(option => option.setName('tag').setDescription('The software to search for.').setRequired(true))),
+                    new SlashCommandBuilder()
+                        .setName('tags')
+                        .setDescription("View a user's tags.")
+                        .addUserOption(option => option.setName('user').setDescription('The user to view (defaults to yourself).')),
+                ];
+
+                // Register for each guild the bot is in
+                this.client.guilds.cache.forEach(async (guild) => {
+                    for (const command of commands) {
+                        await guild.commands.create(command.toJSON());
+                    }
+                });
+                
+                console.log('✓ Genre Discovery slash commands registered.');
+            } catch (error) {
+                console.error('Error registering Genre Discovery commands:', error);
+            }
+        });
+
+        this.client.on('interactionCreate', async (interaction) => {
+            if (!interaction.isChatInputCommand()) return;
+
+            const { commandName } = interaction;
+            if (['set', 'find', 'tags'].includes(commandName)) {
+                await this.handleGenreCommands(interaction);
+            }
+        });
+    }
+
+    async handleGenreCommands(interaction) {
+        try {
+            const { commandName, options, guildId, user } = interaction;
+            const data = await this.loadData();
+            const userData = this.getUserData(data, guildId, user.id);
+
+            await interaction.deferReply({ ephemeral: false });
+
+            if (commandName === 'set') {
+                const subCommand = options.getSubcommand();
+                const type = subCommand === 'genre' ? 'genres' : 'daws';
+                const typeName = subCommand;
+                const inputTags = options.getString('tags').split(',').map(t => t.trim()).filter(Boolean);
+                
+                userData[type] = [...new Set([...userData[type], ...inputTags])];
+                await this.saveData(data);
+                await this.logTagUpdate(interaction, user, 'added', typeName, inputTags);
+
+                await interaction.editReply(`✅ Your ${typeName} tags have been updated: ${inputTags.join(', ')}`);
+            }
+
+            else if (commandName === 'tags') {
+                const targetUser = options.getUser('user') || user;
+                const targetData = data[guildId]?.[targetUser.id] || { genres: [], daws: [] };
+
+                const embed = {
+                    color: 0x7289DA,
+                    author: { name: `${targetUser.username}'s Tags`, icon_url: targetUser.displayAvatarURL() },
+                    fields: [
+                        { name: '🎶 Genres', value: targetData.genres.length > 0 ? targetData.genres.join(', ') : 'None set.', inline: false },
+                        { name: '💻 Software', value: targetData.daws.length > 0 ? targetData.daws.join(', ') : 'None set.', inline: false }
+                    ]
+                };
+                await interaction.editReply({ embeds: [embed] });
+            }
+
+            else if (commandName === 'find') {
+                const subCommand = options.getSubcommand();
+                const type = subCommand === 'genre' ? 'genres' : 'daws';
+                const typeName = subCommand;
+                const tagToFind = options.getString('tag').trim();
+                const guildData = data[guildId] || {};
+                
+                let matches = [];
+                for (const userId in guildData) {
+                    if (guildData[userId][type]?.some(t => t.toLowerCase() === tagToFind.toLowerCase())) {
+                        try {
+                           const member = await interaction.guild.members.fetch(userId);
+                           matches.push(member.toString());
+                        } catch { 
+                            // Member likely left the server
+                        }
+                    }
+                }
+
+                const embed = {
+                    color: 0x7289DA,
+                    title: `🔍 Producers with ${typeName}: **${tagToFind}**`,
+                    description: matches.length > 0 ? matches.join('\n') : `No producers found with the **${tagToFind}** tag.`,
+                };
+                await interaction.editReply({ embeds: [embed] });
+            }
+
+        } catch (error) {
+            console.error('Error handling genre command:', error);
+            
+            try {
+                if (interaction.deferred) {
+                    await interaction.editReply({ content: '❌ An error occurred while processing your command.' });
+                } else {
+                    await interaction.reply({ content: '❌ An error occurred while processing your command.', ephemeral: true });
+                }
+            } catch (replyError) {
+                console.error('Error sending error message:', replyError);
+            }
+        }
+    }
 
     getFrontendComponent() {
         return {
@@ -131,8 +298,26 @@ class GenreDiscoveryPlugin {
             name: 'Genre Discovery',
             description: 'Manage genre and software tags for your server.',
             icon: '🎶',
-            html: '<div>Genre Discovery Dashboard</div>',
-            script: 'console.log("Genre Discovery frontend loaded");'
+            html: `<div class="plugin-container">
+                <h3>Genre Discovery</h3>
+                <div class="form-group">
+                    <label>Server:</label>
+                    <select id="genre-server-select" class="form-control">
+                        <option value="">Select a server...</option>
+                    </select>
+                </div>
+                <div id="genre-content" style="display: none;">
+                    <h4>Available Genres</h4>
+                    <input type="text" id="new-genre" placeholder="Add genre">
+                    <button id="add-genre">Add</button>
+                    <div id="genres-list"></div>
+                    <h4>Available DAWs</h4>
+                    <input type="text" id="new-daw" placeholder="Add DAW">
+                    <button id="add-daw">Add</button>
+                    <div id="daws-list"></div>
+                </div>
+            </div>`,
+            script: `console.log('Genre Discovery loaded');`
         };
     }
 }
