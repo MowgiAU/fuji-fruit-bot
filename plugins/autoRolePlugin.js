@@ -200,7 +200,7 @@ class AutoRolePlugin {
             }
         });
 
-        // Create reaction role message
+        // Create reaction role message (WITH DEBUG CODE)
         this.app.post('/api/plugins/autorole/reactionroles/:serverId/create', this.ensureAuthenticated, async (req, res) => {
             try {
                 const { serverId } = req.params;
@@ -240,8 +240,14 @@ class AutoRolePlugin {
                             inline: true
                         });
                         emojiMap[roleData.emoji] = roleData.roleId;
+                        
+                        // TEST EACH EMOJI
+                        console.log(`🧪 [CREATE] Testing emoji for role ${role.name}:`);
+                        this.testEmojiConsistency(roleData.emoji);
                     }
                 }
+                
+                console.log(`🎭 [CREATE] Final emoji map:`, emojiMap);
                 
                 // Send message
                 const message = await channel.send({ embeds: [embed] });
@@ -250,8 +256,9 @@ class AutoRolePlugin {
                 for (const emoji of Object.keys(emojiMap)) {
                     try {
                         await message.react(emoji);
+                        console.log(`✅ [CREATE] Successfully added reaction: ${emoji}`);
                     } catch (error) {
-                        console.error(`Error adding reaction ${emoji}:`, error);
+                        console.error(`❌ [CREATE] Error adding reaction ${emoji}:`, error);
                     }
                 }
                 
@@ -272,6 +279,10 @@ class AutoRolePlugin {
                 };
                 
                 this.saveReactionRoles();
+                
+                // TEST THE SAVED DATA
+                console.log(`🧪 [CREATE] Testing saved data for message ${message.id}:`);
+                this.testReactionRoleData(serverId, message.id);
                 
                 res.json({ 
                     success: true, 
@@ -455,16 +466,25 @@ class AutoRolePlugin {
     }
 
     async handleReactionAdd(reaction, user) {
+        console.log(`🔍 [DEBUG] Reaction detected: ${reaction.emoji.name || reaction.emoji.toString()} by ${user.tag}`);
+        
         try {
             // Ignore bot reactions
-            if (user.bot) return;
+            if (user.bot) {
+                console.log('❌ [DEBUG] Ignoring bot reaction');
+                return;
+            }
+            
+            console.log('✅ [DEBUG] User reaction detected, proceeding...');
             
             // Handle partial reactions
             if (reaction.partial) {
+                console.log('📥 [DEBUG] Fetching partial reaction...');
                 try {
                     await reaction.fetch();
+                    console.log('✅ [DEBUG] Partial reaction fetched successfully');
                 } catch (error) {
-                    console.error('Failed to fetch reaction:', error);
+                    console.error('❌ [DEBUG] Failed to fetch reaction:', error);
                     return;
                 }
             }
@@ -472,23 +492,61 @@ class AutoRolePlugin {
             const guildId = reaction.message.guild.id;
             const messageId = reaction.message.id;
             
+            console.log(`🏠 [DEBUG] Guild: ${guildId}, Message: ${messageId}`);
+            
+            // Debug: Show all reaction role data
+            console.log(`📊 [DEBUG] All reaction roles for guild:`, this.reactionRoles[guildId]);
+            
             // Check if this is a reaction role message
             const reactionRoleData = this.reactionRoles[guildId]?.[messageId];
-            if (!reactionRoleData) return;
+            if (!reactionRoleData) {
+                console.log('❌ [DEBUG] No reaction role data found for this message');
+                console.log(`💡 [DEBUG] Available messages in guild:`, Object.keys(this.reactionRoles[guildId] || {}));
+                return;
+            }
+            
+            console.log(`✅ [DEBUG] Found reaction role data:`, reactionRoleData);
             
             const emoji = reaction.emoji.name || reaction.emoji.toString();
+            console.log(`🎭 [DEBUG] Processing emoji: "${emoji}"`);
+            console.log(`🗂️ [DEBUG] Available emoji mappings:`, Object.keys(reactionRoleData.roles));
+            
             const roleId = reactionRoleData.roles[emoji];
             
-            if (!roleId) return;
+            console.log(`🔗 [DEBUG] Emoji: "${emoji}" → Role ID: ${roleId}`);
+            
+            if (!roleId) {
+                console.log('❌ [DEBUG] No role mapped to this emoji');
+                console.log(`💡 [DEBUG] Expected one of: ${Object.keys(reactionRoleData.roles).join(', ')}`);
+                return;
+            }
             
             const member = reaction.message.guild.members.cache.get(user.id);
-            if (!member) return;
+            if (!member) {
+                console.log('❌ [DEBUG] Member not found in guild cache');
+                try {
+                    const fetchedMember = await reaction.message.guild.members.fetch(user.id);
+                    console.log('✅ [DEBUG] Member fetched successfully');
+                } catch (error) {
+                    console.error('❌ [DEBUG] Failed to fetch member:', error);
+                    return;
+                }
+                return;
+            }
+            
+            console.log(`👤 [DEBUG] Member found: ${member.user.tag}`);
             
             const role = reaction.message.guild.roles.cache.get(roleId);
-            if (!role) return;
+            if (!role) {
+                console.log(`❌ [DEBUG] Role not found: ${roleId}`);
+                return;
+            }
+            
+            console.log(`🎭 [DEBUG] Role found: ${role.name}`);
             
             // Check if member already has the role
             if (member.roles.cache.has(roleId)) {
+                console.log('⚠️ [DEBUG] Member already has this role');
                 return;
             }
             
@@ -499,12 +557,16 @@ class AutoRolePlugin {
                     currentReactionRoles.includes(role.id)
                 );
                 
+                console.log(`📊 [DEBUG] Max roles: ${reactionRoleData.maxRoles}, Current: ${memberReactionRoles.size}`);
+                
                 if (memberReactionRoles.size >= reactionRoleData.maxRoles) {
+                    console.log('❌ [DEBUG] Max roles limit reached');
                     // Remove user's reaction
                     try {
                         await reaction.users.remove(user.id);
+                        console.log('✅ [DEBUG] Removed user reaction due to limit');
                     } catch (error) {
-                        console.error('Could not remove reaction:', error);
+                        console.error('❌ [DEBUG] Could not remove reaction:', error);
                     }
                     
                     // Send temporary message
@@ -513,8 +575,9 @@ class AutoRolePlugin {
                             `${user}, you can only have ${reactionRoleData.maxRoles} role(s) from this message.`
                         );
                         setTimeout(() => msg.delete().catch(() => {}), 5000);
+                        console.log('✅ [DEBUG] Sent max roles warning message');
                     } catch (error) {
-                        console.error('Could not send max roles message:', error);
+                        console.error('❌ [DEBUG] Could not send max roles message:', error);
                     }
                     
                     return;
@@ -523,7 +586,9 @@ class AutoRolePlugin {
             
             // Add the role
             try {
+                console.log(`🚀 [DEBUG] Attempting to add role "${role.name}" to ${member.user.tag}`);
                 await member.roles.add(roleId, 'Reaction role');
+                console.log(`✅ [DEBUG] Successfully added role "${role.name}" to ${member.user.tag}`);
                 
                 // Log the role assignment
                 await this.logAutoRole(reaction.message.guild, {
@@ -534,12 +599,21 @@ class AutoRolePlugin {
                     messageId: messageId
                 });
                 
+                console.log('✅ [DEBUG] Logged role assignment');
+                
             } catch (error) {
-                console.error(`Error adding reaction role to ${user.tag}:`, error);
+                console.error(`❌ [DEBUG] Error adding reaction role to ${user.tag}:`, error);
+                
+                // Check if it's a permissions error
+                if (error.code === 50013) {
+                    console.error('❌ [DEBUG] Missing permissions to manage roles');
+                } else if (error.code === 50028) {
+                    console.error('❌ [DEBUG] Invalid role or role hierarchy issue');
+                }
             }
             
         } catch (error) {
-            console.error('Error handling reaction add:', error);
+            console.error('❌ [DEBUG] Error handling reaction add:', error);
         }
     }
 
@@ -842,6 +916,52 @@ class AutoRolePlugin {
         } catch (error) {
             console.error('Error logging auto-role action:', error);
         }
+    }
+    
+    testReactionRoleData(guildId, messageId) {
+        console.log('🧪 [TEST] Testing reaction role data...');
+        
+        // Check if data exists
+        const guildData = this.reactionRoles[guildId];
+        console.log(`📊 [TEST] Guild data exists: ${!!guildData}`);
+        
+        if (guildData) {
+            console.log(`📋 [TEST] Messages in guild: ${Object.keys(guildData).length}`);
+            console.log(`📝 [TEST] Message IDs: ${Object.keys(guildData).join(', ')}`);
+            
+            const messageData = guildData[messageId];
+            console.log(`📨 [TEST] Message data exists: ${!!messageData}`);
+            
+            if (messageData) {
+                console.log(`🎭 [TEST] Emoji mappings:`, messageData.roles);
+                console.log(`⚙️ [TEST] Settings:`, {
+                    maxRoles: messageData.maxRoles,
+                    removeOnUnreact: messageData.removeOnUnreact,
+                    title: messageData.title
+                });
+            }
+        }
+        
+        // Check if file exists
+        const filePath = './data/reactionRoles.json';
+        console.log(`💾 [TEST] File exists: ${fs.existsSync(filePath)}`);
+        
+        if (fs.existsSync(filePath)) {
+            try {
+                const fileData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+                console.log(`📄 [TEST] File data:`, fileData);
+            } catch (error) {
+                console.error(`❌ [TEST] Error reading file:`, error);
+            }
+        }
+    }
+
+    testEmojiConsistency(emoji) {
+        console.log(`🔍 [EMOJI TEST] Testing emoji: "${emoji}"`);
+        console.log(`📊 [EMOJI TEST] Type: ${typeof emoji}`);
+        console.log(`📏 [EMOJI TEST] Length: ${emoji.length}`);
+        console.log(`🔢 [EMOJI TEST] Char codes: ${Array.from(emoji).map(char => char.charCodeAt(0))}`);
+        console.log(`✨ [EMOJI TEST] Unicode: ${Array.from(emoji).map(char => '\\u' + char.charCodeAt(0).toString(16).padStart(4, '0')).join('')}`);
     }
 
     getFrontendComponent() {
@@ -1875,5 +1995,4 @@ class AutoRolePlugin {
 }
 
 module.exports = AutoRolePlugin;
-                
-                
+                    

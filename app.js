@@ -267,6 +267,7 @@ app.post('/api/message', ensureAuthenticated, upload.array('attachments'), async
 // Load and register plugin routes
 pluginLoader.loadPlugins(app, client, ensureAuthenticated, hasAdminPermissions);
 
+
 // Discord client events
 client.once('ready', () => {
     console.log(`Bot is ready! Logged in as ${client.user.tag}`);
