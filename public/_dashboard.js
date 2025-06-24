@@ -1771,7 +1771,7 @@ function getChannelRulesPluginComponent() {
     };
 }
 
-// Add the getAutoRolePluginComponent function
+// NEW: Add the getAutoRolePluginComponent function
 function getAutoRolePluginComponent() {
     return {
         html: `
@@ -2651,246 +2651,6 @@ function getAutoRolePluginComponent() {
     };
 }
 
-// NEW: Add the getGenreDiscoveryPluginComponent function
-
-function getGenreDiscoveryPluginComponent() {
-    return {
-        html: `
-            <div class="plugin-container">
-                <div class="plugin-header">
-                    <h3><span class="plugin-icon">🎶</span> Genre Discovery</h3>
-                    <p>Help music producers share and discover each other's genres and setups</p>
-                </div>
-
-                <div class="settings-section">
-                    <h3>Settings</h3>
-                    <div class="form-group">
-                        <label>Server:</label>
-                        <select id="genre-server-select" class="form-control">
-                            <option value="">Select a server...</option>
-                        </select>
-                    </div>
-
-                    <div id="genre-settings-container" style="display: none;">
-                        <div class="form-group">
-                            <label for="genre-log-channel">Log Channel (Optional):</label>
-                            <select id="genre-log-channel" class="form-control">
-                                <option value="">Select a channel for tag logs...</option>
-                            </select>
-                            <small style="opacity: 0.7; display: block; margin-top: 4px;">
-                                Choose where tag update logs will be sent
-                            </small>
-                        </div>
-
-                        <button type="button" id="save-genre-settings" class="btn-primary">
-                            <span class="btn-text">Save Settings</span>
-                            <span class="btn-loader" style="display: none;">Saving...</span>
-                        </button>
-                    </div>
-                </div>
-
-                <div id="genre-stats-section" style="display: none;">
-                    <h3>Server Statistics</h3>
-                    
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
-                        <div style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 20px;">
-                            <h4>🎶 Top Genres</h4>
-                            <div id="top-genres-list"></div>
-                        </div>
-                        
-                        <div style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 20px;">
-                            <h4>💻 Top Software</h4>
-                            <div id="top-daws-list"></div>
-                        </div>
-                    </div>
-                    
-                    <button type="button" id="refresh-genre-stats" style="background: rgba(255, 255, 255, 0.1); color: #fff; border: 1px solid rgba(255, 255, 255, 0.2); padding: 10px 20px; border-radius: 8px; cursor: pointer;">
-                        🔄 Refresh Statistics
-                    </button>
-                </div>
-
-                <div class="info-section">
-                    <h3>Available Commands</h3>
-                    <div style="background: rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 20px; border: 1px solid rgba(255, 255, 255, 0.1);">
-                        <div style="margin-bottom: 15px;">
-                            <code style="background: rgba(0, 0, 0, 0.3); color: #64B5F6; padding: 6px 10px; border-radius: 6px;">/set genre [tags]</code>
-                            <span style="color: rgba(255, 255, 255, 0.8); margin-left: 10px;">Set your music genres</span>
-                        </div>
-                        <div style="margin-bottom: 15px;">
-                            <code style="background: rgba(0, 0, 0, 0.3); color: #64B5F6; padding: 6px 10px; border-radius: 6px;">/set daw [tags]</code>
-                            <span style="color: rgba(255, 255, 255, 0.8); margin-left: 10px;">Set your software/DAWs</span>
-                        </div>
-                        <div style="margin-bottom: 15px;">
-                            <code style="background: rgba(0, 0, 0, 0.3); color: #64B5F6; padding: 6px 10px; border-radius: 6px;">/find genre [tag]</code>
-                            <span style="color: rgba(255, 255, 255, 0.8); margin-left: 10px;">Find users by genre</span>
-                        </div>
-                        <div style="margin-bottom: 15px;">
-                            <code style="background: rgba(0, 0, 0, 0.3); color: #64B5F6; padding: 6px 10px; border-radius: 6px;">/find daw [tag]</code>
-                            <span style="color: rgba(255, 255, 255, 0.8); margin-left: 10px;">Find users by software</span>
-                        </div>
-                        <div>
-                            <code style="background: rgba(0, 0, 0, 0.3); color: #64B5F6; padding: 6px 10px; border-radius: 6px;">/tags [@user]</code>
-                            <span style="color: rgba(255, 255, 255, 0.8); margin-left: 10px;">View someone's tags</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `,
-        script: `
-            (function() {
-                console.log('Genre Discovery plugin frontend loaded');
-                
-                let currentServer = null;
-                
-                async function loadServers() {
-                    try {
-                        const response = await fetch('/api/servers');
-                        const servers = await response.json();
-                        
-                        const serverSelect = document.getElementById('genre-server-select');
-                        if (serverSelect) {
-                            serverSelect.innerHTML = '<option value="">Select a server...</option>';
-                            servers.forEach(server => {
-                                const option = document.createElement('option');
-                                option.value = server.id;
-                                option.textContent = server.name;
-                                serverSelect.appendChild(option);
-                            });
-                        }
-                    } catch (error) {
-                        console.error('Error loading servers:', error);
-                    }
-                }
-                
-                async function loadChannels(serverId) {
-                    if (!serverId) return;
-                    
-                    try {
-                        const response = await fetch('/api/channels/' + serverId);
-                        const channels = await response.json();
-                        
-                        const logChannelSelect = document.getElementById('genre-log-channel');
-                        if (logChannelSelect) {
-                            logChannelSelect.innerHTML = '<option value="">Select a channel for tag logs...</option>';
-                            channels.forEach(channel => {
-                                const option = document.createElement('option');
-                                option.value = channel.id;
-                                option.textContent = '#' + channel.name;
-                                logChannelSelect.appendChild(option);
-                            });
-                        }
-                    } catch (error) {
-                        console.error('Error loading channels:', error);
-                    }
-                }
-                
-                async function loadStats(serverId) {
-                    if (!serverId) return;
-                    
-                    try {
-                        const response = await fetch('/api/plugins/genrediscovery/stats/' + serverId);
-                        const stats = await response.json();
-                        
-                        const topGenresList = document.getElementById('top-genres-list');
-                        const topDawsList = document.getElementById('top-daws-list');
-                        
-                        if (topGenresList) {
-                            topGenresList.innerHTML = stats.topGenres.length > 0 
-                                ? stats.topGenres.map(([genre, count]) => 
-                                    '<div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1);"><span>' + genre + '</span><span style="opacity: 0.7;">' + count + ' users</span></div>'
-                                  ).join('')
-                                : '<div style="color: rgba(255, 255, 255, 0.6); text-align: center; padding: 20px;">No genre data yet</div>';
-                        }
-                        
-                        if (topDawsList) {
-                            topDawsList.innerHTML = stats.topDaws.length > 0 
-                                ? stats.topDaws.map(([daw, count]) => 
-                                    '<div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1);"><span>' + daw + '</span><span style="opacity: 0.7;">' + count + ' users</span></div>'
-                                  ).join('')
-                                : '<div style="color: rgba(255, 255, 255, 0.6); text-align: center; padding: 20px;">No software data yet</div>';
-                        }
-                    } catch (error) {
-                        console.error('Error loading stats:', error);
-                    }
-                }
-                
-                async function saveSettings() {
-                    if (!currentServer) return;
-                    
-                    const saveButton = document.getElementById('save-genre-settings');
-                    if (saveButton) saveButton.disabled = true;
-                    
-                    try {
-                        const logChannelSelect = document.getElementById('genre-log-channel');
-                        const settings = {
-                            logChannelId: logChannelSelect ? logChannelSelect.value : null
-                        };
-                        
-                        const response = await fetch('/api/plugins/genrediscovery/settings/' + currentServer, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(settings)
-                        });
-                        
-                        const result = await response.json();
-                        if (result.success && window.showNotification) {
-                            window.showNotification('Genre Discovery settings saved!', 'success');
-                        }
-                    } catch (error) {
-                        console.error('Error saving settings:', error);
-                        if (window.showNotification) {
-                            window.showNotification('Failed to save settings', 'error');
-                        }
-                    } finally {
-                        if (saveButton) saveButton.disabled = false;
-                    }
-                }
-                
-                function initializeGenreDiscovery() {
-                    loadServers();
-                    
-                    const serverSelect = document.getElementById('genre-server-select');
-                    if (serverSelect) {
-                        serverSelect.addEventListener('change', async function() {
-                            currentServer = this.value;
-                            const settingsContainer = document.getElementById('genre-settings-container');
-                            const statsSection = document.getElementById('genre-stats-section');
-                            
-                            if (currentServer) {
-                                if (settingsContainer) settingsContainer.style.display = 'block';
-                                if (statsSection) statsSection.style.display = 'block';
-                                await loadChannels(currentServer);
-                                await loadStats(currentServer);
-                            } else {
-                                if (settingsContainer) settingsContainer.style.display = 'none';
-                                if (statsSection) statsSection.style.display = 'none';
-                            }
-                        });
-                    }
-                    
-                    const saveButton = document.getElementById('save-genre-settings');
-                    if (saveButton) {
-                        saveButton.addEventListener('click', saveSettings);
-                    }
-                    
-                    const refreshButton = document.getElementById('refresh-genre-stats');
-                    if (refreshButton) {
-                        refreshButton.addEventListener('click', function() {
-                            if (currentServer) {
-                                loadStats(currentServer);
-                                if (window.showNotification) {
-                                    window.showNotification('Statistics refreshed!', 'success');
-                                }
-                            }
-                        });
-                    }
-                }
-                
-                initializeGenreDiscovery();
-            })();
-        `
-    };
-}
 
 // Initialize the application
 async function loadUser() {
@@ -2949,18 +2709,11 @@ async function loadPlugins() {
             channelRulesContainer.innerHTML = channelRulesPlugin.html;
         }
         
-        // Load auto role plugin
+        // NEW: Load auto role plugin
         const autoRolePlugin = getAutoRolePluginComponent();
         const autoRoleContainer = document.getElementById('autoRolePluginContainer');
         if (autoRoleContainer) {
             autoRoleContainer.innerHTML = autoRolePlugin.html;
-        }
-		
-		 // NEW: Load genre discovery plugin
-        const genreDiscoveryPlugin = getGenreDiscoveryPluginComponent();
-        const genreDiscoveryContainer = document.getElementById('genreDiscoveryPluginContainer');
-        if (genreDiscoveryContainer) {
-            genreDiscoveryContainer.innerHTML = genreDiscoveryPlugin.html;
         }
         
         // Execute plugin scripts after a short delay to ensure DOM is updated
@@ -2994,13 +2747,6 @@ async function loadPlugins() {
                 eval(autoRolePlugin.script);
             } catch (error) {
                 console.error('Error executing auto role plugin script:', error);
-            }
-			
-			// NEW: Execute genre discovery plugin script
-            try {
-                eval(genreDiscoveryPlugin.script);
-            } catch (error) {
-                console.error('Error executing genre discovery plugin script:', error);
             }
             
         }, 100);
