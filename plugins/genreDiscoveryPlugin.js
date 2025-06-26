@@ -19,7 +19,7 @@ class GenreDiscoveryPlugin {
 
         this.initializeData();
         this.setupRoutes();
-		this.setupSlashCommands();
+        this.setupSlashCommands();
         
         console.log('Genre Discovery plugin loaded successfully!');
     }
@@ -116,8 +116,13 @@ class GenreDiscoveryPlugin {
                     }
                 }
 
-                const topGenres = Object.entries(genreCounts).sort((a,b) => b[1] - a[1]).slice(0, 10);
-                const topDaws = Object.entries(dawCounts).sort((a,b) => b[1] - a[1]).slice(0, 10);
+                const topGenres = Object.entries(genreCounts)
+                    .sort(([,a], [,b]) => b - a)
+                    .slice(0, 10);
+                
+                const topDaws = Object.entries(dawCounts)
+                    .sort(([,a], [,b]) => b - a)
+                    .slice(0, 10);
 
                 res.json({ topGenres, topDaws });
             } catch (error) {
@@ -126,32 +131,38 @@ class GenreDiscoveryPlugin {
             }
         });
     }
-	
-	getUserData(data, guildId, userId) {
-        if (!data[guildId]) {
-            data[guildId] = {};
-        }
-        if (!data[guildId][userId]) {
-            data[guildId][userId] = { genres: [], daws: [] };
-        }
+
+    getUserData(data, guildId, userId) {
+        if (!data[guildId]) data[guildId] = {};
+        if (!data[guildId][userId]) data[guildId][userId] = { genres: [], daws: [] };
         return data[guildId][userId];
     }
 
     async logTagUpdate(interaction, user, action, type, tags) {
-        const settings = await this.loadSettings();
-        const guildSettings = settings[interaction.guildId];
-
-        if (guildSettings && guildSettings.logChannelId) {
-            const logChannel = this.client.channels.cache.get(guildSettings.logChannelId);
-            if (logChannel) {
-                const tagString = tags.map(t => `**${t}**`).join(', ');
-                const embed = {
-                    color: 0x2ECC71,
-                    description: `**${user.username}** ${action} ${tagString} ${action === 'added' ? 'to' : 'from'} their ${type}.`,
-                    timestamp: new Date().toISOString()
-                };
-                await logChannel.send({ embeds: [embed] });
-            }
+        try {
+            const settings = await this.loadSettings();
+            const guildSettings = settings[interaction.guildId];
+            
+            if (!guildSettings?.logChannelId) return;
+            
+            const channel = interaction.guild.channels.cache.get(guildSettings.logChannelId);
+            if (!channel) return;
+            
+            const embed = {
+                color: 0x7289DA,
+                title: '🏷️ Tag Update',
+                fields: [
+                    { name: 'User', value: user.toString(), inline: true },
+                    { name: 'Action', value: action, inline: true },
+                    { name: 'Type', value: type, inline: true },
+                    { name: 'Tags', value: tags.join(', '), inline: false }
+                ],
+                timestamp: new Date().toISOString()
+            };
+            
+            await channel.send({ embeds: [embed] });
+        } catch (error) {
+            console.error('Error logging tag update:', error);
         }
     }
 
@@ -161,33 +172,35 @@ class GenreDiscoveryPlugin {
                 const commands = [
                     new SlashCommandBuilder()
                         .setName('set')
-                        .setDescription('Set your genre or software tags.')
+                        .setDescription('Set your genre or software tags')
                         .addSubcommand(subcommand =>
                             subcommand
                                 .setName('genre')
-                                .setDescription('Set your genre(s). Separate multiple with commas.')
-                                .addStringOption(option => option.setName('tags').setDescription('e.g., Trap, Lo-fi, DnB').setRequired(true)))
+                                .setDescription('Set your genre tags')
+                                .addStringOption(option => option.setName('tags').setDescription('Comma-separated genres').setRequired(true)))
                         .addSubcommand(subcommand =>
                             subcommand
                                 .setName('daw')
-                                .setDescription('Set your software/DAW(s). Separate multiple with commas.')
-                                .addStringOption(option => option.setName('tags').setDescription('e.g., FL Studio, Ableton').setRequired(true))),
+                                .setDescription('Set your software/DAW tags')
+                                .addStringOption(option => option.setName('tags').setDescription('Comma-separated software/DAWs').setRequired(true))),
+                    
                     new SlashCommandBuilder()
                         .setName('find')
-                        .setDescription('Find producers by genre or software.')
+                        .setDescription('Find users by their tags')
                         .addSubcommand(subcommand =>
                             subcommand
                                 .setName('genre')
-                                .setDescription('Find users by genre.')
-                                .addStringOption(option => option.setName('tag').setDescription('The genre to search for.').setRequired(true)))
+                                .setDescription('Find users by genre')
+                                .addStringOption(option => option.setName('tag').setDescription('Genre to search for').setRequired(true)))
                         .addSubcommand(subcommand =>
                             subcommand
                                 .setName('daw')
-                                .setDescription('Find users by software/DAW.')
-                                .addStringOption(option => option.setName('tag').setDescription('The software to search for.').setRequired(true))),
+                                .setDescription('Find users by software/DAW')
+                                .addStringOption(option => option.setName('tag').setDescription('Software/DAW to search for').setRequired(true))),
+                    
                     new SlashCommandBuilder()
                         .setName('tags')
-                        .setDescription("View a user's tags.")
+                        .setDescription('View user tags')
                         .addUserOption(option => option.setName('user').setDescription('The user to view (defaults to yourself).')),
                 ];
 
@@ -293,22 +306,19 @@ class GenreDiscoveryPlugin {
     }
 
     getFrontendComponent() {
-    return {
-        // Plugin identification
-        id: 'genre-discovery-plugin',
-        name: 'Genre Discovery',
-        description: 'Helps music producers share and discover each other\'s genres and setups',
-        icon: '🎶',
-        version: '1.0.0',
-        
-        // NEW: Plugin defines its own targets (no more dashboard hardcoding!)
-        containerId: 'genreDiscoveryPluginContainer',  // Where to inject HTML
-        pageId: 'genre-discovery',                     // Page ID for navigation
-        navIcon: '🎶',                                // Icon for navigation
-        
-        // Complete HTML and script
-        html: `
-            <div class="plugin-container">
+        return {
+            id: 'genre-discovery-plugin',
+            name: 'Genre Discovery',
+            description: 'Helps music producers share and discover each other\'s genres and setups',
+            icon: '🎶',
+            version: '1.0.0',
+            
+            // Plugin defines its own targets
+            containerId: 'genreDiscoveryPluginContainer',  // Where to inject HTML
+            pageId: 'genre-discovery',                     // Page ID for navigation
+            navIcon: '🎶',                                // Icon for navigation
+            
+            html: `<div class="plugin-container">
                 <div class="plugin-header">
                     <h3><span class="plugin-icon">🎶</span> Genre Discovery</h3>
                     <p>Helps music producers share and discover each other's genres and setups</p>
@@ -392,230 +402,238 @@ class GenreDiscoveryPlugin {
                         </div>
                     </div>
                 </div>
-            </div>
-        `,
-        script: `
-            // Genre Discovery Plugin Frontend Logic
-            (function() {
-                console.log('Loading Genre Discovery plugin...');
-                
-                const genreServerSelect = document.getElementById('genre-server-select');
-                const genreStatsSection = document.getElementById('genre-stats-section');
-                const genreSettingsSection = document.getElementById('genre-settings-section');
-                const genreRefreshSection = document.getElementById('genre-refresh-section');
-                const genreLogChannel = document.getElementById('genre-log-channel');
-                const saveGenreSettings = document.getElementById('save-genre-settings');
-                const refreshGenreStats = document.getElementById('refresh-genre-stats');
-                const genreStatsList = document.getElementById('genre-stats-list');
-                const dawStatsList = document.getElementById('daw-stats-list');
-                const btnText = saveGenreSettings ? saveGenreSettings.querySelector('.btn-text') : null;
-                const btnLoader = saveGenreSettings ? saveGenreSettings.querySelector('.btn-loader') : null;
-                
-                let currentGuildId = null;
-                
-                // Initialize if elements exist
-                if (genreServerSelect) {
-                    genreServerSelect.addEventListener('change', handleGenreServerChange);
-                    loadGenreServers();
-                }
-                
-                if (saveGenreSettings) {
-                    saveGenreSettings.addEventListener('click', saveGenreSettings_internal);
-                }
-                
-                if (refreshGenreStats) {
-                    refreshGenreStats.addEventListener('click', loadGenreStats);
-                }
-                
-                async function loadGenreServers() {
-                    try {
-                        const response = await fetch('/api/servers');
-                        const servers = await response.json();
-                        
-                        if (genreServerSelect) {
-                            genreServerSelect.innerHTML = '<option value="">Select a server...</option>';
-                            servers.forEach(server => {
-                                const option = document.createElement('option');
-                                option.value = server.id;
-                                option.textContent = server.name;
-                                genreServerSelect.appendChild(option);
-                            });
-                        }
-                    } catch (error) {
-                        console.error('Error loading servers:', error);
-                        if (window.showNotification) {
-                            window.showNotification('Error loading servers', 'error');
-                        }
-                    }
-                }
-                
-                async function handleGenreServerChange() {
-                    currentGuildId = genreServerSelect ? genreServerSelect.value : null;
+            </div>`,
+            script: `
+                (function() {
+                    console.log('🎶 Loading Genre Discovery plugin...');
                     
-                    if (currentGuildId) {
-                        await Promise.all([
-                            loadGenreChannels(),
-                            loadGenreSettings(),
-                            loadGenreStats()
-                        ]);
-                        showGenreSections();
+                    const genreServerSelect = document.getElementById('genre-server-select');
+                    const genreStatsSection = document.getElementById('genre-stats-section');
+                    const genreSettingsSection = document.getElementById('genre-settings-section');
+                    const genreRefreshSection = document.getElementById('genre-refresh-section');
+                    const genreLogChannel = document.getElementById('genre-log-channel');
+                    const saveGenreSettings = document.getElementById('save-genre-settings');
+                    const refreshGenreStats = document.getElementById('refresh-genre-stats');
+                    const genreStatsList = document.getElementById('genre-stats-list');
+                    const dawStatsList = document.getElementById('daw-stats-list');
+                    const btnText = saveGenreSettings ? saveGenreSettings.querySelector('.btn-text') : null;
+                    const btnLoader = saveGenreSettings ? saveGenreSettings.querySelector('.btn-loader') : null;
+                    
+                    let currentGuildId = null;
+                    
+                    if (genreServerSelect) {
+                        genreServerSelect.addEventListener('change', handleGenreServerChange);
+                        loadGenreServers();
+                        console.log('✓ Genre server select initialized');
                     } else {
-                        hideGenreSections();
-                    }
-                }
-                
-                function showGenreSections() {
-                    const sections = [
-                        genreStatsSection,
-                        genreSettingsSection, 
-                        genreRefreshSection
-                    ];
-                    
-                    sections.forEach(section => {
-                        if (section) section.style.display = 'block';
-                    });
-                }
-                
-                function hideGenreSections() {
-                    const sections = [
-                        genreStatsSection,
-                        genreSettingsSection,
-                        genreRefreshSection
-                    ];
-                    
-                    sections.forEach(section => {
-                        if (section) section.style.display = 'none';
-                    });
-                }
-                
-                async function loadGenreChannels() {
-                    try {
-                        const response = await fetch(\`/api/channels/\${currentGuildId}\`);
-                        const channels = await response.json();
-                        
-                        if (genreLogChannel) {
-                            genreLogChannel.innerHTML = '<option value="">No logging</option>';
-                            channels.forEach(channel => {
-                                const option = document.createElement('option');
-                                option.value = channel.id;
-                                option.textContent = \`# \${channel.name}\`;
-                                genreLogChannel.appendChild(option);
-                            });
-                        }
-                    } catch (error) {
-                        console.error('Error loading channels:', error);
-                    }
-                }
-                
-                async function loadGenreSettings() {
-                    try {
-                        const response = await fetch(\`/api/plugins/genrediscovery/settings/\${currentGuildId}\`);
-                        const settings = await response.json();
-                        
-                        if (genreLogChannel) {
-                            genreLogChannel.value = settings.logChannelId || '';
-                        }
-                    } catch (error) {
-                        console.error('Error loading genre settings:', error);
-                    }
-                }
-                
-                async function loadGenreStats() {
-                    if (!currentGuildId) return;
-                    
-                    try {
-                        if (refreshGenreStats) {
-                            refreshGenreStats.disabled = true;
-                            refreshGenreStats.textContent = '🔄 Loading...';
-                        }
-                        
-                        const response = await fetch(\`/api/plugins/genrediscovery/stats/\${currentGuildId}\`);
-                        const stats = await response.json();
-                        
-                        displayGenreStats(stats.topGenres, genreStatsList);
-                        displayGenreStats(stats.topDaws, dawStatsList);
-                        
-                    } catch (error) {
-                        console.error('Error loading genre stats:', error);
-                        if (window.showNotification) {
-                            window.showNotification('Error loading statistics', 'error');
-                        }
-                    } finally {
-                        if (refreshGenreStats) {
-                            refreshGenreStats.disabled = false;
-                            refreshGenreStats.textContent = '🔄 Refresh Statistics';
-                        }
-                    }
-                }
-                
-                function displayGenreStats(data, container) {
-                    if (!container) return;
-                    
-                    if (!data || data.length === 0) {
-                        container.innerHTML = '<div class="no-data">No data available</div>';
-                        return;
+                        console.warn('⚠ Genre server select not found');
                     }
                     
-                    container.innerHTML = '';
-                    data.forEach(([tag, count]) => {
-                        const item = document.createElement('div');
-                        item.className = 'stats-item';
-                        item.innerHTML = \`
-                            <span class="tag">\${tag}</span>
-                            <span class="count">\${count} user\${count === 1 ? '' : 's'}</span>
-                        \`;
-                        container.appendChild(item);
-                    });
-                }
-                
-                async function saveGenreSettings_internal() {
-                    if (!currentGuildId) {
-                        if (window.showNotification) {
-                            window.showNotification('Please select a server first', 'error');
-                        }
-                        return;
+                    if (saveGenreSettings) {
+                        saveGenreSettings.addEventListener('click', saveGenreSettings_internal);
                     }
                     
-                    try {
-                        if (btnText) btnText.style.display = 'none';
-                        if (btnLoader) btnLoader.style.display = 'inline';
-                        if (saveGenreSettings) saveGenreSettings.disabled = true;
-                        
-                        const settings = {
-                            logChannelId: genreLogChannel ? genreLogChannel.value || null : null
-                        };
-                        
-                        const response = await fetch(\`/api/plugins/genrediscovery/settings/\${currentGuildId}\`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify(settings)
-                        });
-                        
-                        const result = await response.json();
-                        
-                        if (response.ok) {
+                    if (refreshGenreStats) {
+                        refreshGenreStats.addEventListener('click', loadGenreStats);
+                    }
+                    
+                    async function loadGenreServers() {
+                        try {
+                            console.log('🔄 Loading genre servers...');
+                            const response = await fetch('/api/servers');
+                            const servers = await response.json();
+                            
+                            if (genreServerSelect) {
+                                genreServerSelect.innerHTML = '<option value="">Select a server...</option>';
+                                servers.forEach(server => {
+                                    const option = document.createElement('option');
+                                    option.value = server.id;
+                                    option.textContent = server.name;
+                                    genreServerSelect.appendChild(option);
+                                });
+                                console.log(\`✓ Loaded \${servers.length} servers for genre discovery\`);
+                            }
+                        } catch (error) {
+                            console.error('❌ Error loading servers:', error);
                             if (window.showNotification) {
-                                window.showNotification('Genre Discovery settings saved successfully!', 'success');
+                                window.showNotification('Error loading servers', 'error');
+                            }
+                        }
+                    }
+                    
+                    async function handleGenreServerChange() {
+                        currentGuildId = genreServerSelect ? genreServerSelect.value : null;
+                        console.log('🔄 Server changed:', currentGuildId);
+                        
+                        if (currentGuildId) {
+                            try {
+                                await Promise.all([
+                                    loadGenreChannels(),
+                                    loadGenreSettings(),
+                                    loadGenreStats()
+                                ]);
+                                showGenreSections();
+                                console.log('✓ Genre data loaded for guild:', currentGuildId);
+                            } catch (error) {
+                                console.error('❌ Error loading genre data:', error);
                             }
                         } else {
-                            throw new Error(result.error || 'Failed to save settings');
+                            hideGenreSections();
+                            console.log('✓ Genre sections hidden (no server selected)');
                         }
-                    } catch (error) {
-                        console.error('Error saving genre settings:', error);
-                        if (window.showNotification) {
-                            window.showNotification(error.message, 'error');
-                        }
-                    } finally {
-                        if (btnText) btnText.style.display = 'inline';
-                        if (btnLoader) btnLoader.style.display = 'none';
-                        if (saveGenreSettings) saveGenreSettings.disabled = false;
                     }
-                }
-            })();
-        `
-    };
+                    
+                    function showGenreSections() {
+                        [genreStatsSection, genreSettingsSection, genreRefreshSection].forEach(section => {
+                            if (section) section.style.display = 'block';
+                        });
+                        console.log('✓ Genre sections shown');
+                    }
+                    
+                    function hideGenreSections() {
+                        [genreStatsSection, genreSettingsSection, genreRefreshSection].forEach(section => {
+                            if (section) section.style.display = 'none';
+                        });
+                        console.log('✓ Genre sections hidden');
+                    }
+                    
+                    async function loadGenreChannels() {
+                        try {
+                            console.log('🔄 Loading genre channels...');
+                            const response = await fetch(\`/api/channels/\${currentGuildId}\`);
+                            const channels = await response.json();
+                            
+                            if (genreLogChannel) {
+                                genreLogChannel.innerHTML = '<option value="">No logging</option>';
+                                channels.forEach(channel => {
+                                    const option = document.createElement('option');
+                                    option.value = channel.id;
+                                    option.textContent = \`# \${channel.name}\`;
+                                    genreLogChannel.appendChild(option);
+                                });
+                                console.log(\`✓ Loaded \${channels.length} channels for genre discovery\`);
+                            }
+                        } catch (error) {
+                            console.error('❌ Error loading channels:', error);
+                        }
+                    }
+                    
+                    async function loadGenreSettings() {
+                        try {
+                            console.log('🔄 Loading genre settings...');
+                            const response = await fetch(\`/api/plugins/genrediscovery/settings/\${currentGuildId}\`);
+                            const settings = await response.json();
+                            
+                            if (genreLogChannel) {
+                                genreLogChannel.value = settings.logChannelId || '';
+                            }
+                            console.log('✓ Genre settings loaded');
+                        } catch (error) {
+                            console.error('❌ Error loading genre settings:', error);
+                        }
+                    }
+                    
+                    async function loadGenreStats() {
+                        if (!currentGuildId) return;
+                        
+                        try {
+                            console.log('🔄 Loading genre stats...');
+                            if (refreshGenreStats) {
+                                refreshGenreStats.disabled = true;
+                                refreshGenreStats.textContent = '🔄 Loading...';
+                            }
+                            
+                            const response = await fetch(\`/api/plugins/genrediscovery/stats/\${currentGuildId}\`);
+                            const stats = await response.json();
+                            
+                            displayGenreStats(stats.topGenres, genreStatsList);
+                            displayGenreStats(stats.topDaws, dawStatsList);
+                            console.log('✓ Genre stats loaded and displayed');
+                            
+                        } catch (error) {
+                            console.error('❌ Error loading genre stats:', error);
+                            if (window.showNotification) {
+                                window.showNotification('Error loading statistics', 'error');
+                            }
+                        } finally {
+                            if (refreshGenreStats) {
+                                refreshGenreStats.disabled = false;
+                                refreshGenreStats.textContent = '🔄 Refresh Statistics';
+                            }
+                        }
+                    }
+                    
+                    function displayGenreStats(data, container) {
+                        if (!container) return;
+                        
+                        if (!data || data.length === 0) {
+                            container.innerHTML = '<div class="no-data">No data available</div>';
+                            return;
+                        }
+                        
+                        container.innerHTML = '';
+                        data.forEach(([tag, count]) => {
+                            const item = document.createElement('div');
+                            item.className = 'stats-item';
+                            item.innerHTML = \`
+                                <span class="tag">\${tag}</span>
+                                <span class="count">\${count} user\${count === 1 ? '' : 's'}</span>
+                            \`;
+                            container.appendChild(item);
+                        });
+                    }
+                    
+                    async function saveGenreSettings_internal() {
+                        if (!currentGuildId) {
+                            if (window.showNotification) {
+                                window.showNotification('Please select a server first', 'error');
+                            }
+                            return;
+                        }
+                        
+                        try {
+                            console.log('💾 Saving genre settings...');
+                            if (btnText) btnText.style.display = 'none';
+                            if (btnLoader) btnLoader.style.display = 'inline';
+                            if (saveGenreSettings) saveGenreSettings.disabled = true;
+                            
+                            const settings = {
+                                logChannelId: genreLogChannel ? genreLogChannel.value || null : null
+                            };
+                            
+                            const response = await fetch(\`/api/plugins/genrediscovery/settings/\${currentGuildId}\`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(settings)
+                            });
+                            
+                            const result = await response.json();
+                            
+                            if (response.ok) {
+                                if (window.showNotification) {
+                                    window.showNotification('Genre Discovery settings saved successfully!', 'success');
+                                }
+                                console.log('✓ Genre settings saved successfully');
+                            } else {
+                                throw new Error(result.error || 'Failed to save settings');
+                            }
+                        } catch (error) {
+                            console.error('❌ Error saving genre settings:', error);
+                            if (window.showNotification) {
+                                window.showNotification(error.message, 'error');
+                            }
+                        } finally {
+                            if (btnText) btnText.style.display = 'inline';
+                            if (btnLoader) btnLoader.style.display = 'none';
+                            if (saveGenreSettings) saveGenreSettings.disabled = false;
+                        }
+                    }
+                    
+                    console.log('✅ Genre Discovery plugin loaded successfully!');
+                })();
+            `
+        };
+    }
 }
 
 module.exports = GenreDiscoveryPlugin;
