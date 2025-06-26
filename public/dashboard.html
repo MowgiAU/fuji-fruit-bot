@@ -21,51 +21,15 @@
     </nav>
 
     <div class="sidebar" id="sidebar">
-        <ul class="sidebar-menu">
+        <ul class="sidebar-menu nav-links">
+            <!-- Overview link (always present) -->
             <li>
                 <a class="nav-link active" data-page="overview">
                     <span class="sidebar-icon">🏠</span>
                     <span>Overview</span>
                 </a>
             </li>
-            <li>
-                <a class="nav-link" data-page="message-sender">
-                    <span class="sidebar-icon">💬</span>
-                    <span>Message Sender</span>
-                </a>
-            </li>
-            <li>
-                <a class="nav-link" data-page="word-filter">
-                    <span class="sidebar-icon">🚫</span>
-                    <span>Word Filter</span>
-                </a>
-            </li>
-            <li>
-                <a class="nav-link" data-page="leveling">
-                    <span class="sidebar-icon">📈</span>
-                    <span>Leveling System</span>
-                </a>
-            </li>
-			<li>
-                <a class="nav-link" data-page="channel-rules">
-                    <span class="sidebar-icon">⚖️</span>
-                    <span>Channel Rules</span>
-                </a>
-			</li>
-        
-			<li>
-                <a class="nav-link" data-page="auto-role">
-                    <span class="sidebar-icon">🎭</span>
-                    <span>Auto Role System</span>
-                </a>
-			</li>
-            <!-- NEW: Genre Discovery Nav Link -->
-            <li>
-                <a class="nav-link" data-page="genre-discovery">
-                    <span class="sidebar-icon">🎶</span>
-                    <span>Genre Discovery</span>
-                </a>
-			</li>
+            <!-- Plugin navigation links will be dynamically generated here -->
         </ul>
     </div>
 
@@ -82,56 +46,42 @@
                     <h3>🍑 Fuji Fruit Bot Features</h3>
                     <p style="margin-bottom: 1.5rem; opacity: 0.8;">Select a plugin from the sidebar to get started:</p>
                     
-                    <div style="display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));">
-                        <div class="feature-card" data-page="message-sender">
-                            <div style="font-size: 2rem; margin-bottom: 0.5rem;">💬</div>
-                            <h4>Message Sender</h4>
-                            <p style="opacity: 0.7; font-size: 0.9rem;">Send messages with attachments, replies, emojis, and stickers</p>
-                        </div>
-                        
-                        <div class="feature-card" data-page="word-filter">
-                            <div style="font-size: 2rem; margin-bottom: 0.5rem;">🚫</div>
-                            <h4>Word Filter</h4>
-                            <p style="opacity: 0.7; font-size: 0.9rem;">Automatically detect and filter inappropriate words</p>
-                        </div>
-                        
-                        <div class="feature-card" data-page="leveling">
-                            <div style="font-size: 2rem; margin-bottom: 0.5rem;">📈</div>
-                            <h4>Leveling System</h4>
-                            <p style="opacity: 0.7; font-size: 0.9rem;">XP and leveling system with multiple sources and leaderboards</p>
-                        </div>
-						
-                        <div class="feature-card" data-page="channel-rules">
-                            <div style="font-size: 2rem; margin-bottom: 0.5rem;">⚖️</div>
-                            <h4>Channel Rules</h4>
-                            <p style="opacity: 0.7; font-size: 0.9rem;">Set up automated rules for channels with custom conditions and actions</p>
-                        </div>
-						
-						<div class="feature-card" data-page="auto-role">
-							<div style="font-size: 2rem; margin-bottom: 0.5rem;">🎭</div>
-							<h4>Auto-Role System</h4>
-							<p style="opacity: 0.7; font-size: 0.9rem;">Automatic role assignment, reaction roles, and level-based roles</p>
-						</div>
-
-                        <!-- NEW: Genre Discovery Feature Card -->
-                        <div class="feature-card" data-page="genre-discovery">
-                            <div style="font-size: 2rem; margin-bottom: 0.5rem;">🎶</div>
-                            <h4>Genre Discovery</h4>
-                            <p style="opacity: 0.7; font-size: 0.9rem;">Helps music producers share and discover each other’s genres and setups</p>
-                        </div>
+                    <div id="feature-grid" style="display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));">
+                        <!-- Feature cards will be dynamically generated here -->
                     </div>
                 </div>
             </div>
 
-            <!-- Page Containers -->
-            <div id="message-sender-page" class="plugin-page"><div id="messagePluginContainer"></div></div>
-            <div id="word-filter-page" class="plugin-page"><div id="wordFilterPluginContainer"></div></div>
-            <div id="leveling-page" class="plugin-page"><div id="levelingPluginContainer"></div></div>
-			<div id="channel-rules-page" class="plugin-page"><div id="channelRulesPluginContainer"></div></div>
-			<div id="auto-role-page" class="plugin-page"><div id="autoRolePluginContainer"></div></div>
-			
-			<!-- NEW: Genre Discovery Page Container -->
-			<div id="genre-discovery-page" class="plugin-page">
+            <!-- Dynamic Plugin Page Containers -->
+            <!-- These containers will be dynamically created by plugins -->
+            
+            <!-- Message Plugin Container -->
+            <div id="message-sender-page" class="plugin-page">
+                <div id="messagePluginContainer"></div>
+            </div>
+            
+            <!-- Word Filter Plugin Container -->
+            <div id="word-filter-page" class="plugin-page">
+                <div id="wordFilterPluginContainer"></div>
+            </div>
+            
+            <!-- Leveling Plugin Container -->
+            <div id="leveling-page" class="plugin-page">
+                <div id="levelingPluginContainer"></div>
+            </div>
+            
+            <!-- Channel Rules Plugin Container -->
+            <div id="channel-rules-page" class="plugin-page">
+                <div id="channelRulesPluginContainer"></div>
+            </div>
+            
+            <!-- Auto Role Plugin Container -->
+            <div id="auto-role-page" class="plugin-page">
+                <div id="autoRolePluginContainer"></div>
+            </div>
+            
+            <!-- Genre Discovery Plugin Container -->
+            <div id="genre-discovery-page" class="plugin-page">
                 <div id="genreDiscoveryPluginContainer"></div>
             </div>
         </div>

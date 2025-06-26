@@ -293,33 +293,329 @@ class GenreDiscoveryPlugin {
     }
 
     getFrontendComponent() {
-        return {
-            id: 'genre-discovery',
-            name: 'Genre Discovery',
-            description: 'Manage genre and software tags for your server.',
-            icon: '🎶',
-            html: `<div class="plugin-container">
-                <h3>Genre Discovery</h3>
-                <div class="form-group">
-                    <label>Server:</label>
-                    <select id="genre-server-select" class="form-control">
-                        <option value="">Select a server...</option>
-                    </select>
+    return {
+        // Plugin identification
+        id: 'genre-discovery-plugin',
+        name: 'Genre Discovery',
+        description: 'Helps music producers share and discover each other\'s genres and setups',
+        icon: '🎶',
+        version: '1.0.0',
+        
+        // NEW: Plugin defines its own targets (no more dashboard hardcoding!)
+        containerId: 'genreDiscoveryPluginContainer',  // Where to inject HTML
+        pageId: 'genre-discovery',                     // Page ID for navigation
+        navIcon: '🎶',                                // Icon for navigation
+        
+        // Complete HTML and script
+        html: `
+            <div class="plugin-container">
+                <div class="plugin-header">
+                    <h3><span class="plugin-icon">🎶</span> Genre Discovery</h3>
+                    <p>Helps music producers share and discover each other's genres and setups</p>
                 </div>
-                <div id="genre-content" style="display: none;">
-                    <h4>Available Genres</h4>
-                    <input type="text" id="new-genre" placeholder="Add genre">
-                    <button id="add-genre">Add</button>
-                    <div id="genres-list"></div>
-                    <h4>Available DAWs</h4>
-                    <input type="text" id="new-daw" placeholder="Add DAW">
-                    <button id="add-daw">Add</button>
-                    <div id="daws-list"></div>
+
+                <div class="settings-section">
+                    <h3>Server Selection</h3>
+                    <div class="form-group">
+                        <label for="genre-server-select">Server:</label>
+                        <select id="genre-server-select" class="form-control">
+                            <option value="">Select a server...</option>
+                        </select>
+                    </div>
                 </div>
-            </div>`,
-            script: `console.log('Genre Discovery loaded');`
-        };
-    }
+
+                <div id="genre-stats-section" style="display: none;">
+                    <h3>📊 Server Statistics</h3>
+                    <div class="stats-grid">
+                        <div class="stats-card">
+                            <h4>🎶 Popular Genres</h4>
+                            <div class="stats-list" id="genre-stats-list">
+                                <div class="no-data">No genre data available</div>
+                            </div>
+                        </div>
+                        <div class="stats-card">
+                            <h4>💻 Popular Software</h4>
+                            <div class="stats-list" id="daw-stats-list">
+                                <div class="no-data">No software data available</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="genre-settings-section" style="display: none;">
+                    <h3>⚙️ Settings</h3>
+                    <div class="form-group">
+                        <label for="genre-log-channel">Log Channel (Optional):</label>
+                        <select id="genre-log-channel" class="form-control">
+                            <option value="">No logging</option>
+                        </select>
+                        <small style="opacity: 0.7; display: block; margin-top: 4px;">
+                            Choose where tag updates will be logged
+                        </small>
+                    </div>
+                    
+                    <button type="button" id="save-genre-settings" class="btn-primary">
+                        <span class="btn-text">Save Settings</span>
+                        <span class="btn-loader" style="display: none;">Saving...</span>
+                    </button>
+                </div>
+
+                <div id="genre-refresh-section" style="display: none;">
+                    <h3>🔄 Data Management</h3>
+                    <button type="button" id="refresh-genre-stats" class="btn-secondary">
+                        🔄 Refresh Statistics
+                    </button>
+                </div>
+
+                <div class="info-section">
+                    <h3>Available Commands</h3>
+                    <div class="command-list">
+                        <div class="command-item">
+                            <code>/set genre [tags]</code>
+                            <span>Set your genre(s). Separate multiple with commas.</span>
+                        </div>
+                        <div class="command-item">
+                            <code>/set daw [tags]</code>
+                            <span>Set your software/DAW(s). Separate multiple with commas.</span>
+                        </div>
+                        <div class="command-item">
+                            <code>/find genre [tag]</code>
+                            <span>Find users by genre.</span>
+                        </div>
+                        <div class="command-item">
+                            <code>/find daw [tag]</code>
+                            <span>Find users by software/DAW.</span>
+                        </div>
+                        <div class="command-item">
+                            <code>/tags [@user]</code>
+                            <span>View a user's tags (defaults to yourself).</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `,
+        script: `
+            // Genre Discovery Plugin Frontend Logic
+            (function() {
+                console.log('Loading Genre Discovery plugin...');
+                
+                const genreServerSelect = document.getElementById('genre-server-select');
+                const genreStatsSection = document.getElementById('genre-stats-section');
+                const genreSettingsSection = document.getElementById('genre-settings-section');
+                const genreRefreshSection = document.getElementById('genre-refresh-section');
+                const genreLogChannel = document.getElementById('genre-log-channel');
+                const saveGenreSettings = document.getElementById('save-genre-settings');
+                const refreshGenreStats = document.getElementById('refresh-genre-stats');
+                const genreStatsList = document.getElementById('genre-stats-list');
+                const dawStatsList = document.getElementById('daw-stats-list');
+                const btnText = saveGenreSettings ? saveGenreSettings.querySelector('.btn-text') : null;
+                const btnLoader = saveGenreSettings ? saveGenreSettings.querySelector('.btn-loader') : null;
+                
+                let currentGuildId = null;
+                
+                // Initialize if elements exist
+                if (genreServerSelect) {
+                    genreServerSelect.addEventListener('change', handleGenreServerChange);
+                    loadGenreServers();
+                }
+                
+                if (saveGenreSettings) {
+                    saveGenreSettings.addEventListener('click', saveGenreSettings_internal);
+                }
+                
+                if (refreshGenreStats) {
+                    refreshGenreStats.addEventListener('click', loadGenreStats);
+                }
+                
+                async function loadGenreServers() {
+                    try {
+                        const response = await fetch('/api/servers');
+                        const servers = await response.json();
+                        
+                        if (genreServerSelect) {
+                            genreServerSelect.innerHTML = '<option value="">Select a server...</option>';
+                            servers.forEach(server => {
+                                const option = document.createElement('option');
+                                option.value = server.id;
+                                option.textContent = server.name;
+                                genreServerSelect.appendChild(option);
+                            });
+                        }
+                    } catch (error) {
+                        console.error('Error loading servers:', error);
+                        if (window.showNotification) {
+                            window.showNotification('Error loading servers', 'error');
+                        }
+                    }
+                }
+                
+                async function handleGenreServerChange() {
+                    currentGuildId = genreServerSelect ? genreServerSelect.value : null;
+                    
+                    if (currentGuildId) {
+                        await Promise.all([
+                            loadGenreChannels(),
+                            loadGenreSettings(),
+                            loadGenreStats()
+                        ]);
+                        showGenreSections();
+                    } else {
+                        hideGenreSections();
+                    }
+                }
+                
+                function showGenreSections() {
+                    const sections = [
+                        genreStatsSection,
+                        genreSettingsSection, 
+                        genreRefreshSection
+                    ];
+                    
+                    sections.forEach(section => {
+                        if (section) section.style.display = 'block';
+                    });
+                }
+                
+                function hideGenreSections() {
+                    const sections = [
+                        genreStatsSection,
+                        genreSettingsSection,
+                        genreRefreshSection
+                    ];
+                    
+                    sections.forEach(section => {
+                        if (section) section.style.display = 'none';
+                    });
+                }
+                
+                async function loadGenreChannels() {
+                    try {
+                        const response = await fetch(\`/api/channels/\${currentGuildId}\`);
+                        const channels = await response.json();
+                        
+                        if (genreLogChannel) {
+                            genreLogChannel.innerHTML = '<option value="">No logging</option>';
+                            channels.forEach(channel => {
+                                const option = document.createElement('option');
+                                option.value = channel.id;
+                                option.textContent = \`# \${channel.name}\`;
+                                genreLogChannel.appendChild(option);
+                            });
+                        }
+                    } catch (error) {
+                        console.error('Error loading channels:', error);
+                    }
+                }
+                
+                async function loadGenreSettings() {
+                    try {
+                        const response = await fetch(\`/api/plugins/genrediscovery/settings/\${currentGuildId}\`);
+                        const settings = await response.json();
+                        
+                        if (genreLogChannel) {
+                            genreLogChannel.value = settings.logChannelId || '';
+                        }
+                    } catch (error) {
+                        console.error('Error loading genre settings:', error);
+                    }
+                }
+                
+                async function loadGenreStats() {
+                    if (!currentGuildId) return;
+                    
+                    try {
+                        if (refreshGenreStats) {
+                            refreshGenreStats.disabled = true;
+                            refreshGenreStats.textContent = '🔄 Loading...';
+                        }
+                        
+                        const response = await fetch(\`/api/plugins/genrediscovery/stats/\${currentGuildId}\`);
+                        const stats = await response.json();
+                        
+                        displayGenreStats(stats.topGenres, genreStatsList);
+                        displayGenreStats(stats.topDaws, dawStatsList);
+                        
+                    } catch (error) {
+                        console.error('Error loading genre stats:', error);
+                        if (window.showNotification) {
+                            window.showNotification('Error loading statistics', 'error');
+                        }
+                    } finally {
+                        if (refreshGenreStats) {
+                            refreshGenreStats.disabled = false;
+                            refreshGenreStats.textContent = '🔄 Refresh Statistics';
+                        }
+                    }
+                }
+                
+                function displayGenreStats(data, container) {
+                    if (!container) return;
+                    
+                    if (!data || data.length === 0) {
+                        container.innerHTML = '<div class="no-data">No data available</div>';
+                        return;
+                    }
+                    
+                    container.innerHTML = '';
+                    data.forEach(([tag, count]) => {
+                        const item = document.createElement('div');
+                        item.className = 'stats-item';
+                        item.innerHTML = \`
+                            <span class="tag">\${tag}</span>
+                            <span class="count">\${count} user\${count === 1 ? '' : 's'}</span>
+                        \`;
+                        container.appendChild(item);
+                    });
+                }
+                
+                async function saveGenreSettings_internal() {
+                    if (!currentGuildId) {
+                        if (window.showNotification) {
+                            window.showNotification('Please select a server first', 'error');
+                        }
+                        return;
+                    }
+                    
+                    try {
+                        if (btnText) btnText.style.display = 'none';
+                        if (btnLoader) btnLoader.style.display = 'inline';
+                        if (saveGenreSettings) saveGenreSettings.disabled = true;
+                        
+                        const settings = {
+                            logChannelId: genreLogChannel ? genreLogChannel.value || null : null
+                        };
+                        
+                        const response = await fetch(\`/api/plugins/genrediscovery/settings/\${currentGuildId}\`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(settings)
+                        });
+                        
+                        const result = await response.json();
+                        
+                        if (response.ok) {
+                            if (window.showNotification) {
+                                window.showNotification('Genre Discovery settings saved successfully!', 'success');
+                            }
+                        } else {
+                            throw new Error(result.error || 'Failed to save settings');
+                        }
+                    } catch (error) {
+                        console.error('Error saving genre settings:', error);
+                        if (window.showNotification) {
+                            window.showNotification(error.message, 'error');
+                        }
+                    } finally {
+                        if (btnText) btnText.style.display = 'inline';
+                        if (btnLoader) btnLoader.style.display = 'none';
+                        if (saveGenreSettings) saveGenreSettings.disabled = false;
+                    }
+                }
+            })();
+        `
+    };
 }
 
 module.exports = GenreDiscoveryPlugin;

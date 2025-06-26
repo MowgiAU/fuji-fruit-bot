@@ -684,850 +684,889 @@ class ChannelRulesPlugin {
     }
 
     getFrontendComponent() {
-        return {
-            id: 'channel-rules-plugin',
-            name: 'Channel Rules',
-            description: 'Set up automated rules for channels',
-            icon: '⚖️',
-            html: `
-                <div class="plugin-container">
-                    <div class="plugin-header">
-                        <h3><span class="plugin-icon">⚖️</span> Channel Rules</h3>
-                        <p>Set up automated rules for channels with custom conditions and actions</p>
-                    </div>
-                    
-                    <form id="channelRulesForm">
-                        <div class="form-group">
-                            <label for="rulesServerSelect">Server</label>
-                            <select id="rulesServerSelect" required>
-                                <option value="">Select a server...</option>
-                            </select>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="rulesChannelSelect">Channel</label>
-                            <select id="rulesChannelSelect" required disabled>
-                                <option value="">Select a channel...</option>
-                            </select>
-                        </div>
-                        
-                        <div id="channelRulesSettings" style="display: none;">
-                            <div class="form-group">
-                                <label>
-                                    <input type="checkbox" id="rulesEnabled" style="margin-right: 8px;">
-                                    Enable Rules for This Channel
-                                </label>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="rulesLogChannelSelect">Log Channel (Optional)</label>
-                                <select id="rulesLogChannelSelect">
-                                    <option value="">Select a channel for violation logs...</option>
-                                </select>
-                                <small style="opacity: 0.7; display: block; margin-top: 4px;">
-                                    Choose where rule violation logs will be sent
-                                </small>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label>Channel Rules</label>
-                                <div id="rulesList" style="min-height: 100px; background: rgba(255,255,255,0.05); border-radius: 8px; padding: 10px; margin-bottom: 10px;">
-                                    <div id="noRulesMessage" style="opacity: 0.6; text-align: center; padding: 20px;">
-                                        No rules configured for this channel
-                                    </div>
-                                </div>
-                                
-                                <button type="button" id="addRuleBtn" class="glass-btn" style="width: 100%;">
-                                    + Add New Rule
-                                </button>
-                            </div>
-                            
-                            <div class="form-group">
-                                <button type="button" id="saveChannelRules" class="btn-primary">
-                                    <span class="btn-text">Save Rules</span>
-                                    <span class="btn-loader" style="display: none;">Saving...</span>
-                                </button>
-                                
-                                <button type="button" id="deleteChannelRules" class="glass-btn" style="margin-left: 10px;">
-                                    Delete All Rules
-                                </button>
-                            </div>
-                        </div>
-                    </form>
+    return {
+        // Plugin identification
+        id: 'channel-rules-plugin',
+        name: 'Channel Rules',
+        description: 'Set up automated rules for channels with custom conditions and actions',
+        icon: '⚖️',
+        version: '1.1.0',
+        
+        // NEW: Plugin defines its own targets (no more dashboard hardcoding!)
+        containerId: 'channelRulesPluginContainer',  // Where to inject HTML
+        pageId: 'channel-rules',                     // Page ID for navigation
+        navIcon: '⚖️',                              // Icon for navigation
+        
+        // Complete HTML and script
+        html: `
+            <div class="plugin-container">
+                <div class="plugin-header">
+                    <h3><span class="plugin-icon">⚖️</span> Channel Rules</h3>
+                    <p>Set up automated rules for channels with custom conditions and actions</p>
                 </div>
-
-                <!-- Rule Creation Modal -->
-                <div id="ruleModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center;">
-                    <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); border-radius: 15px; padding: 2rem; max-width: 700px; width: 90%; max-height: 80vh; overflow-y: auto; border: 1px solid rgba(255,255,255,0.2);">
-                        <h3 style="margin-bottom: 1rem; color: white;">Create New Rule</h3>
-                        
-                        <div class="form-group">
-                            <label for="ruleType">Rule Type</label>
-                            <select id="ruleType" class="form-control">
-                                <option value="">Select rule type...</option>
-                                <optgroup label="File Requirements">
-                                    <option value="must_contain_audio">Must Contain Audio File</option>
-                                    <option value="must_contain_image">Must Contain Image</option>
-                                    <option value="must_contain_video">Must Contain Video</option>
-                                    <option value="must_contain_file">Must Contain Any File</option>
-                                </optgroup>
-                                <optgroup label="File Blocking">
-                                    <option value="block_audio">Block Audio Files</option>
-                                    <option value="block_images">Block Images</option>
-                                    <option value="block_videos">Block Videos</option>
-                                    <option value="block_all_files">Block All File Attachments</option>
-                                    <option value="block_file_extensions">Block Specific File Extensions</option>
-                                    <option value="block_large_files">Block Large Files</option>
-                                </optgroup>
-                                <optgroup label="Content Rules">
-                                    <option value="blocked_domains">Block Specific Domains</option>
-                                    <option value="required_text">Require Specific Text</option>
-                                    <option value="blocked_text">Block Specific Text</option>
-                                    <option value="min_length">Minimum Message Length</option>
-                                    <option value="max_length">Maximum Message Length</option>
-                                </optgroup>
-                            </select>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="ruleAction">Action When Rule is Violated</label>
-                            <select id="ruleAction" class="form-control">
-                                <option value="delete">Delete Message Only</option>
-                                <option value="dm">Send DM to User Only</option>
-                                <option value="delete_and_dm">Delete Message & Send DM</option>
-                            </select>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="customMessage">Custom Message (Optional)</label>
-                            <textarea id="customMessage" class="form-control" rows="3" placeholder="Custom message to send to user when rule is violated..."></textarea>
-                        </div>
-                        
-                        <!-- Dynamic rule configuration areas -->
-                        <div id="domainsConfig" style="display: none;" class="form-group">
-                            <label>Blocked Domains</label>
-                            <input type="text" id="domainInput" class="form-control" placeholder="Enter domain (e.g., youtube.com)" style="margin-bottom: 0.5rem;">
-                            <button type="button" id="addDomainBtn" class="glass-btn">Add Domain</button>
-                            <div id="domainsList" style="margin-top: 0.5rem;"></div>
-                        </div>
-                        
-                        <div id="textsConfig" style="display: none;" class="form-group">
-                            <label id="textsLabel">Text Phrases</label>
-                            <input type="text" id="textInput" class="form-control" placeholder="Enter text phrase..." style="margin-bottom: 0.5rem;">
-                            <button type="button" id="addTextBtn" class="glass-btn">Add Text</button>
-                            <div id="textsList" style="margin-top: 0.5rem;"></div>
-                        </div>
-                        
-                        <div id="extensionsConfig" style="display: none;" class="form-group">
-                            <label>Blocked File Extensions</label>
-                            <input type="text" id="extensionInput" class="form-control" placeholder="Enter extension (e.g., exe, zip, rar)" style="margin-bottom: 0.5rem;">
-                            <button type="button" id="addExtensionBtn" class="glass-btn">Add Extension</button>
-                            <div id="extensionsList" style="margin-top: 0.5rem;"></div>
-                            <small style="opacity: 0.7; display: block; margin-top: 4px;">
-                                Enter file extensions without the dot (e.g., "exe" not ".exe")
-                            </small>
-                        </div>
-                        
-                        <div id="fileSizeConfig" style="display: none;" class="form-group">
-                            <label for="maxFileSize">Maximum File Size</label>
-                            <div style="display: flex; gap: 10px; align-items: center;">
-                                <input type="number" id="maxFileSize" class="form-control" min="1" max="25" placeholder="Size" style="flex: 1;">
-                                <select id="fileSizeUnit" class="form-control" style="flex: 0 0 auto; width: auto;">
-                                    <option value="KB">KB</option>
-                                    <option value="MB" selected>MB</option>
-                                </select>
-                            </div>
-                            <small style="opacity: 0.7; display: block; margin-top: 4px;">
-                                Files larger than this size will be blocked
-                            </small>
-                        </div>
-                        
-                        <div id="lengthConfig" style="display: none;" class="form-group">
-                            <label for="lengthValue" id="lengthLabel">Length</label>
-                            <input type="number" id="lengthValue" class="form-control" min="1" max="2000" placeholder="Enter length...">
-                        </div>
-                        
-                        <div style="display: flex; gap: 10px; margin-top: 1.5rem;">
-                            <button type="button" id="saveRule" class="btn-primary">Save Rule</button>
-                            <button type="button" id="cancelRule" class="glass-btn">Cancel</button>
-                        </div>
-                    </div>
-                </div>
-            `,
-            script: `
-                console.log('Loading enhanced channel rules plugin...');
                 
-                // Wrap in IIFE to avoid variable conflicts
-                (function() {
-                    const rulesServerSelect = document.getElementById('rulesServerSelect');
-                    const rulesChannelSelect = document.getElementById('rulesChannelSelect');
-                    const rulesLogChannelSelect = document.getElementById('rulesLogChannelSelect');
-                    const channelRulesSettings = document.getElementById('channelRulesSettings');
-                    const rulesEnabled = document.getElementById('rulesEnabled');
-                    const rulesList = document.getElementById('rulesList');
-                    const noRulesMessage = document.getElementById('noRulesMessage');
-                    const addRuleBtn = document.getElementById('addRuleBtn');
-                    const saveChannelRules = document.getElementById('saveChannelRules');
-                    const deleteChannelRules = document.getElementById('deleteChannelRules');
-                    const btnText = saveChannelRules ? saveChannelRules.querySelector('.btn-text') : null;
-                    const btnLoader = saveChannelRules ? saveChannelRules.querySelector('.btn-loader') : null;
+                <form id="channelRulesForm">
+                    <div class="form-group">
+                        <label for="rulesServerSelect">Server</label>
+                        <select id="rulesServerSelect" required>
+                            <option value="">Select a server...</option>
+                        </select>
+                    </div>
                     
-                    // Modal elements
-                    const ruleModal = document.getElementById('ruleModal');
-                    const ruleType = document.getElementById('ruleType');
-                    const ruleAction = document.getElementById('ruleAction');
-                    const customMessage = document.getElementById('customMessage');
-                    const saveRule = document.getElementById('saveRule');
-                    const cancelRule = document.getElementById('cancelRule');
+                    <div class="form-group">
+                        <label for="rulesChannelSelect">Channel</label>
+                        <select id="rulesChannelSelect" required disabled>
+                            <option value="">Select a channel...</option>
+                        </select>
+                    </div>
                     
-                    // Dynamic config elements
-                    const domainsConfig = document.getElementById('domainsConfig');
-                    const textsConfig = document.getElementById('textsConfig');
-                    const extensionsConfig = document.getElementById('extensionsConfig');
-                    const fileSizeConfig = document.getElementById('fileSizeConfig');
-                    const lengthConfig = document.getElementById('lengthConfig');
-                    
-                    const domainInput = document.getElementById('domainInput');
-                    const addDomainBtn = document.getElementById('addDomainBtn');
-                    const domainsList = document.getElementById('domainsList');
-                    
-                    const textInput = document.getElementById('textInput');
-                    const addTextBtn = document.getElementById('addTextBtn');
-                    const textsList = document.getElementById('textsList');
-                    const textsLabel = document.getElementById('textsLabel');
-                    
-                    const extensionInput = document.getElementById('extensionInput');
-                    const addExtensionBtn = document.getElementById('addExtensionBtn');
-                    const extensionsList = document.getElementById('extensionsList');
-                    
-                    const maxFileSize = document.getElementById('maxFileSize');
-                    const fileSizeUnit = document.getElementById('fileSizeUnit');
-                    
-                    const lengthValue = document.getElementById('lengthValue');
-                    const lengthLabel = document.getElementById('lengthLabel');
-                    
-                    let currentServerId = null;
-                    let currentChannelId = null;
-                    let currentRules = [];
-                    let tempDomains = [];
-                    let tempTexts = [];
-                    let tempExtensions = [];
-                    let editingRuleIndex = -1;
-                    
-                    if (rulesServerSelect) {
-                        loadRulesServers();
+                    <div id="channelRulesSettings" style="display: none;">
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="rulesEnabled" style="margin-right: 8px;">
+                                Enable Rules for This Channel
+                            </label>
+                        </div>
                         
-                        rulesServerSelect.addEventListener('change', function() {
-                            const serverId = this.value;
-                            currentServerId = serverId;
-                            if (serverId) {
-                                loadRulesChannels(serverId);
-                                if (rulesChannelSelect) rulesChannelSelect.disabled = false;
-                            } else {
-                                if (rulesChannelSelect) {
-                                    rulesChannelSelect.disabled = true;
-                                    rulesChannelSelect.innerHTML = '<option value="">Select a channel...</option>';
-                                }
-                                if (channelRulesSettings) channelRulesSettings.style.display = 'none';
-                            }
-                        });
-                    }
-                    
-                    if (rulesChannelSelect) {
-                        rulesChannelSelect.addEventListener('change', function() {
-                            const channelId = this.value;
-                            currentChannelId = channelId;
-                            if (channelId && currentServerId) {
-                                loadChannelRules(currentServerId, channelId);
-                                loadRulesLogChannels(currentServerId);
-                                if (channelRulesSettings) channelRulesSettings.style.display = 'block';
-                            } else {
-                                if (channelRulesSettings) channelRulesSettings.style.display = 'none';
-                            }
-                        });
-                    }
-                    
-                    if (addRuleBtn) {
-                        addRuleBtn.addEventListener('click', function() {
-                            openRuleModal();
-                        });
-                    }
-                    
-                    if (saveChannelRules) {
-                        saveChannelRules.addEventListener('click', saveRules);
-                    }
-                    
-                    if (deleteChannelRules) {
-                        deleteChannelRules.addEventListener('click', function() {
-                            if (confirm('Are you sure you want to delete all rules for this channel?')) {
-                                deleteAllRules();
-                            }
-                        });
-                    }
-                    
-                    // Modal event listeners
-                    if (ruleType) {
-                        ruleType.addEventListener('change', function() {
-                            updateRuleConfig(this.value);
-                        });
-                    }
-                    
-                    if (saveRule) {
-                        saveRule.addEventListener('click', function() {
-                            saveCurrentRule();
-                        });
-                    }
-                    
-                    if (cancelRule) {
-                        cancelRule.addEventListener('click', function() {
-                            closeRuleModal();
-                        });
-                    }
-                    
-                    // Domain management
-                    if (addDomainBtn) {
-                        addDomainBtn.addEventListener('click', addDomain);
-                    }
-                    
-                    if (domainInput) {
-                        domainInput.addEventListener('keypress', function(e) {
-                            if (e.key === 'Enter') {
-                                addDomain();
-                            }
-                        });
-                    }
-                    
-                    // Text management
-                    if (addTextBtn) {
-                        addTextBtn.addEventListener('click', addText);
-                    }
-                    
-                    if (textInput) {
-                        textInput.addEventListener('keypress', function(e) {
-                            if (e.key === 'Enter') {
-                                addText();
-                            }
-                        });
-                    }
-                    
-                    // Extension management
-                    if (addExtensionBtn) {
-                        addExtensionBtn.addEventListener('click', addExtension);
-                    }
-                    
-                    if (extensionInput) {
-                        extensionInput.addEventListener('keypress', function(e) {
-                            if (e.key === 'Enter') {
-                                addExtension();
-                            }
-                        });
-                    }
-                    
-                    // Close modal when clicking outside
-                    if (ruleModal) {
-                        ruleModal.addEventListener('click', function(e) {
-                            if (e.target === ruleModal) {
-                                closeRuleModal();
-                            }
-                        });
-                    }
-                    
-                    async function loadRulesServers() {
-                        try {
-                            const response = await fetch('/api/servers');
-                            const servers = await response.json();
-                            
-                            rulesServerSelect.innerHTML = '<option value="">Select a server...</option>';
-                            servers.forEach(server => {
-                                const option = document.createElement('option');
-                                option.value = server.id;
-                                option.textContent = server.name;
-                                rulesServerSelect.appendChild(option);
-                            });
-                        } catch (error) {
-                            console.error('Error loading servers:', error);
-                            showNotification('Error loading servers', 'error');
-                        }
-                    }
-                    
-                    async function loadRulesChannels(serverId) {
-                        try {
-                            rulesChannelSelect.innerHTML = '<option value="">Loading...</option>';
-                            const response = await fetch(\`/api/channels/\${serverId}\`);
-                            const channels = await response.json();
-                            
-                            rulesChannelSelect.innerHTML = '<option value="">Select a channel...</option>';
-                            channels.forEach(channel => {
-                                const option = document.createElement('option');
-                                option.value = channel.id;
-                                option.textContent = \`# \${channel.name}\`;
-                                rulesChannelSelect.appendChild(option);
-                            });
-                        } catch (error) {
-                            console.error('Error loading channels:', error);
-                            rulesChannelSelect.innerHTML = '<option value="">Error loading channels</option>';
-                        }
-                    }
-                    
-                    async function loadRulesLogChannels(serverId) {
-                        try {
-                            const response = await fetch(\`/api/channels/\${serverId}\`);
-                            const channels = await response.json();
-                            
-                            rulesLogChannelSelect.innerHTML = '<option value="">Select a channel for violation logs...</option>';
-                            channels.forEach(channel => {
-                                const option = document.createElement('option');
-                                option.value = channel.id;
-                                option.textContent = \`# \${channel.name}\`;
-                                rulesLogChannelSelect.appendChild(option);
-                            });
-                        } catch (error) {
-                            console.error('Error loading log channels:', error);
-                        }
-                    }
-                    
-                    async function loadChannelRules(serverId, channelId) {
-                        try {
-                            const response = await fetch(\`/api/plugins/channelrules/rules/\${serverId}/\${channelId}\`);
-                            const rules = await response.json();
-                            
-                            if (rulesEnabled) rulesEnabled.checked = rules.enabled || false;
-                            if (rulesLogChannelSelect) rulesLogChannelSelect.value = rules.logChannelId || '';
-                            
-                            currentRules = rules.rules || [];
-                            displayRules();
-                        } catch (error) {
-                            console.error('Error loading channel rules:', error);
-                            showNotification('Error loading channel rules', 'error');
-                        }
-                    }
-                    
-                    function displayRules() {
-                        if (!rulesList) return;
+                        <div class="form-group">
+                            <label for="rulesLogChannelSelect">Log Channel (Optional)</label>
+                            <select id="rulesLogChannelSelect">
+                                <option value="">Select a channel for violation logs...</option>
+                            </select>
+                            <small style="opacity: 0.7; display: block; margin-top: 4px;">
+                                Choose where rule violation logs will be sent
+                            </small>
+                        </div>
                         
-                        if (currentRules.length === 0) {
-                            rulesList.innerHTML = '<div style="opacity: 0.6; text-align: center; padding: 20px;">No rules configured for this channel</div>';
-                            return;
-                        }
-                        
-                        rulesList.innerHTML = '';
-                        
-                        currentRules.forEach((rule, index) => {
-                            const ruleElement = document.createElement('div');
-                            ruleElement.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 12px; margin-bottom: 8px; background: rgba(255,255,255,0.1); border-radius: 8px; border-left: 4px solid #7289da;';
-                            
-                            const ruleInfo = getRuleDisplayInfo(rule);
-                            
-                            ruleElement.innerHTML = \`
-                                <div>
-                                    <div style="font-weight: 600; margin-bottom: 4px;">\${ruleInfo.title}</div>
-                                    <div style="font-size: 0.9rem; opacity: 0.8;">\${ruleInfo.description}</div>
-                                    <div style="font-size: 0.8rem; opacity: 0.6; margin-top: 2px;">Action: \${getActionDisplay(rule.action)}</div>
+                        <div class="form-group">
+                            <label>Channel Rules</label>
+                            <div id="rulesList" style="min-height: 100px; background: rgba(255,255,255,0.05); border-radius: 8px; padding: 10px; margin-bottom: 10px;">
+                                <div id="noRulesMessage" style="opacity: 0.6; text-align: center; padding: 20px;">
+                                    No rules configured for this channel
                                 </div>
-                                <div style="display: flex; gap: 8px;">
-                                    <button type="button" onclick="window.editChannelRule(\${index})" class="glass-btn-small">Edit</button>
-                                    <button type="button" onclick="window.removeChannelRule(\${index})" class="glass-btn-small">Remove</button>
-                                </div>
-                            \`;
-                            rulesList.appendChild(ruleElement);
-                        });
-                    }
-                    
-                    function getRuleDisplayInfo(rule) {
-                        const typeDisplays = {
-                            // File requirement rules
-                            'must_contain_audio': { title: 'Must Contain Audio', description: 'Messages must include audio files' },
-                            'must_contain_image': { title: 'Must Contain Image', description: 'Messages must include image files' },
-                            'must_contain_video': { title: 'Must Contain Video', description: 'Messages must include video files' },
-                            'must_contain_file': { title: 'Must Contain File', description: 'Messages must include any file attachment' },
+                            </div>
                             
-                            // File blocking rules
-                            'block_audio': { title: 'Block Audio', description: 'Audio files are blocked' },
-                            'block_images': { title: 'Block Images', description: 'Image files are blocked' },
-                            'block_videos': { title: 'Block Videos', description: 'Video files are blocked' },
-                            'block_all_files': { title: 'Block All Files', description: 'All file attachments are blocked' },
-                            'block_file_extensions': { title: 'Block Extensions', description: \`Blocked: .\${(rule.extensions || []).join(', .')}\` },
-                            'block_large_files': { title: 'Block Large Files', description: \`Files over \${formatFileSize(rule.maxSize || 10485760)} are blocked\` },
+                            <button type="button" id="addRuleBtn" class="glass-btn" style="width: 100%;">
+                                + Add New Rule
+                            </button>
+                        </div>
+                        
+                        <div class="form-group">
+                            <button type="button" id="saveChannelRules" class="btn-primary">
+                                <span class="btn-text">Save Rules</span>
+                                <span class="btn-loader" style="display: none;">Saving...</span>
+                            </button>
                             
-                            // Content rules
-                            'blocked_domains': { title: 'Blocked Domains', description: \`Blocked: \${(rule.domains || []).join(', ')}\` },
-                            'required_text': { title: 'Required Text', description: \`Must contain: \${(rule.texts || []).join(', ')}\` },
-                            'blocked_text': { title: 'Blocked Text', description: \`Cannot contain: \${(rule.texts || []).join(', ')}\` },
-                            'min_length': { title: 'Minimum Length', description: \`Messages must be at least \${rule.length || 0} characters\` },
-                            'max_length': { title: 'Maximum Length', description: \`Messages must be no more than \${rule.length || 2000} characters\` }
-                        };
-                        
-                        return typeDisplays[rule.type] || { title: rule.type, description: 'Custom rule' };
-                    }
+                            <button type="button" id="deleteChannelRules" class="glass-btn" style="margin-left: 10px;">
+                                Delete All Rules
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Rule Creation Modal -->
+            <div id="ruleModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center;">
+                <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); border-radius: 15px; padding: 2rem; max-width: 700px; width: 90%; max-height: 80vh; overflow-y: auto; border: 1px solid rgba(255,255,255,0.2);">
+                    <h3 style="margin-bottom: 1rem; color: white;">Create New Rule</h3>
                     
-                    function getActionDisplay(action) {
-                        const displayMap = {
-                            'delete': 'Delete Message',
-                            'dm': 'Send DM',
-                            'delete_and_dm': 'Delete & DM'
-                        };
-                        return displayMap[action] || action;
-                    }
+                    <div class="form-group">
+                        <label for="ruleType">Rule Type</label>
+                        <select id="ruleType" class="form-control">
+                            <option value="">Select rule type...</option>
+                            <optgroup label="File Requirements">
+                                <option value="must_contain_audio">Must Contain Audio File</option>
+                                <option value="must_contain_image">Must Contain Image</option>
+                                <option value="must_contain_video">Must Contain Video</option>
+                                <option value="must_contain_file">Must Contain Any File</option>
+                            </optgroup>
+                            <optgroup label="File Blocking">
+                                <option value="block_audio">Block Audio Files</option>
+                                <option value="block_images">Block Images</option>
+                                <option value="block_videos">Block Videos</option>
+                                <option value="block_all_files">Block All File Attachments</option>
+                                <option value="block_file_extensions">Block Specific File Extensions</option>
+                                <option value="block_large_files">Block Large Files</option>
+                            </optgroup>
+                            <optgroup label="Content Rules">
+                                <option value="blocked_domains">Block Specific Domains</option>
+                                <option value="required_text">Require Specific Text</option>
+                                <option value="blocked_text">Block Specific Text</option>
+                                <option value="min_length">Minimum Message Length</option>
+                                <option value="max_length">Maximum Message Length</option>
+                            </optgroup>
+                        </select>
+                    </div>
                     
-                    function formatFileSize(bytes) {
-                        if (bytes === 0) return '0 Bytes';
-                        const k = 1024;
-                        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-                        const i = Math.floor(Math.log(bytes) / Math.log(k));
-                        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-                    }
+                    <div class="form-group">
+                        <label for="ruleAction">Action When Rule is Violated</label>
+                        <select id="ruleAction" class="form-control">
+                            <option value="delete">Delete Message Only</option>
+                            <option value="dm">Send DM to User Only</option>
+                            <option value="delete_and_dm">Delete Message & Send DM</option>
+                        </select>
+                    </div>
                     
-                    window.editChannelRule = function(index) {
-                        editingRuleIndex = index;
-                        const rule = currentRules[index];
-                        
-                        if (ruleType) ruleType.value = rule.type;
-                        if (ruleAction) ruleAction.value = rule.action;
-                        if (customMessage) customMessage.value = rule.customMessage || '';
-                        
-                        updateRuleConfig(rule.type);
-                        
-                        // Populate specific rule data
-                        if (rule.type === 'blocked_domains' && rule.domains) {
-                            tempDomains = [...rule.domains];
-                            displayDomains();
-                        }
-                        
-                        if ((rule.type === 'required_text' || rule.type === 'blocked_text') && rule.texts) {
-                            tempTexts = [...rule.texts];
-                            displayTexts();
-                        }
-                        
-                        if (rule.type === 'block_file_extensions' && rule.extensions) {
-                            tempExtensions = [...rule.extensions];
-                            displayExtensions();
-                        }
-                        
-                        if (rule.type === 'block_large_files' && rule.maxSize) {
-                            const sizeInMB = rule.maxSize / (1024 * 1024);
-                            if (maxFileSize) maxFileSize.value = sizeInMB;
-                            if (fileSizeUnit) fileSizeUnit.value = 'MB';
-                        }
-                        
-                        if ((rule.type === 'min_length' || rule.type === 'max_length') && lengthValue) {
-                            lengthValue.value = rule.length || '';
-                        }
-                        
-                        openRuleModal();
-                    };
+                    <div class="form-group">
+                        <label for="customMessage">Custom Message (Optional)</label>
+                        <textarea id="customMessage" class="form-control" rows="3" placeholder="Custom message to send to user when rule is violated..."></textarea>
+                    </div>
                     
-                    window.removeChannelRule = function(index) {
-                        if (confirm('Are you sure you want to remove this rule?')) {
-                            currentRules.splice(index, 1);
-                            displayRules();
-                        }
-                    };
+                    <!-- Dynamic rule configuration areas -->
+                    <div id="domainsConfig" style="display: none;" class="form-group">
+                        <label>Blocked Domains</label>
+                        <input type="text" id="domainInput" class="form-control" placeholder="Enter domain (e.g., youtube.com)" style="margin-bottom: 0.5rem;">
+                        <button type="button" id="addDomainBtn" class="glass-btn">Add Domain</button>
+                        <div id="domainsList" style="margin-top: 0.5rem;"></div>
+                    </div>
                     
-                    function openRuleModal() {
-                        if (ruleModal) {
-                            ruleModal.style.display = 'flex';
-                            
-                            if (editingRuleIndex === -1) {
-                                // Reset form for new rule
-                                if (ruleType) ruleType.value = '';
-                                if (ruleAction) ruleAction.value = 'delete_and_dm';
-                                if (customMessage) customMessage.value = '';
-                                tempDomains = [];
-                                tempTexts = [];
-                                tempExtensions = [];
-                                if (maxFileSize) maxFileSize.value = '';
-                                if (fileSizeUnit) fileSizeUnit.value = 'MB';
-                                updateRuleConfig('');
-                            }
-                        }
-                    }
+                    <div id="textsConfig" style="display: none;" class="form-group">
+                        <label id="textsLabel">Text Phrases</label>
+                        <input type="text" id="textInput" class="form-control" placeholder="Enter text phrase..." style="margin-bottom: 0.5rem;">
+                        <button type="button" id="addTextBtn" class="glass-btn">Add Text</button>
+                        <div id="textsList" style="margin-top: 0.5rem;"></div>
+                    </div>
                     
-                    function closeRuleModal() {
-                        if (ruleModal) {
-                            ruleModal.style.display = 'none';
-                            editingRuleIndex = -1;
-                        }
-                    }
+                    <div id="extensionsConfig" style="display: none;" class="form-group">
+                        <label>Blocked File Extensions</label>
+                        <input type="text" id="extensionInput" class="form-control" placeholder="Enter extension (e.g., exe, zip, rar)" style="margin-bottom: 0.5rem;">
+                        <button type="button" id="addExtensionBtn" class="glass-btn">Add Extension</button>
+                        <div id="extensionsList" style="margin-top: 0.5rem;"></div>
+                        <small style="opacity: 0.7; display: block; margin-top: 4px;">
+                            Enter file extensions without the dot (e.g., "exe" not ".exe")
+                        </small>
+                    </div>
                     
-                    function updateRuleConfig(type) {
-                        // Hide all config sections
-                        if (domainsConfig) domainsConfig.style.display = 'none';
-                        if (textsConfig) textsConfig.style.display = 'none';
-                        if (extensionsConfig) extensionsConfig.style.display = 'none';
-                        if (fileSizeConfig) fileSizeConfig.style.display = 'none';
-                        if (lengthConfig) lengthConfig.style.display = 'none';
-                        
-                        // Show relevant config section
-                        switch (type) {
-                            case 'blocked_domains':
-                                if (domainsConfig) domainsConfig.style.display = 'block';
-                                displayDomains();
-                                break;
-                            case 'required_text':
-                                if (textsConfig) {
-                                    textsConfig.style.display = 'block';
-                                    if (textsLabel) textsLabel.textContent = 'Required Text Phrases';
-                                }
-                                displayTexts();
-                                break;
-                            case 'blocked_text':
-                                if (textsConfig) {
-                                    textsConfig.style.display = 'block';
-                                    if (textsLabel) textsLabel.textContent = 'Blocked Text Phrases';
-                                }
-                                displayTexts();
-                                break;
-                            case 'block_file_extensions':
-                                if (extensionsConfig) extensionsConfig.style.display = 'block';
-                                displayExtensions();
-                                break;
-                            case 'block_large_files':
-                                if (fileSizeConfig) fileSizeConfig.style.display = 'block';
-                                break;
-                            case 'min_length':
-                                if (lengthConfig) {
-                                    lengthConfig.style.display = 'block';
-                                    if (lengthLabel) lengthLabel.textContent = 'Minimum Length (characters)';
-                                }
-                                break;
-                            case 'max_length':
-                                if (lengthConfig) {
-                                    lengthConfig.style.display = 'block';
-                                    if (lengthLabel) lengthLabel.textContent = 'Maximum Length (characters)';
-                                }
-                                break;
-                        }
-                    }
+                    <div id="fileSizeConfig" style="display: none;" class="form-group">
+                        <label for="maxFileSize">Maximum File Size</label>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input type="number" id="maxFileSize" class="form-control" min="1" max="25" placeholder="Size" style="flex: 1;">
+                            <select id="fileSizeUnit" class="form-control" style="flex: 0 0 auto; width: auto;">
+                                <option value="KB">KB</option>
+                                <option value="MB" selected>MB</option>
+                            </select>
+                        </div>
+                        <small style="opacity: 0.7; display: block; margin-top: 4px;">
+                            Files larger than this size will be blocked
+                        </small>
+                    </div>
                     
-                    function addDomain() {
-                        const domain = domainInput ? domainInput.value.trim() : '';
-                        if (domain && !tempDomains.includes(domain)) {
-                            tempDomains.push(domain);
-                            if (domainInput) domainInput.value = '';
-                            displayDomains();
-                        }
-                    }
+                    <div id="lengthConfig" style="display: none;" class="form-group">
+                        <label for="lengthValue" id="lengthLabel">Length</label>
+                        <input type="number" id="lengthValue" class="form-control" min="1" max="2000" placeholder="Enter length...">
+                    </div>
                     
-                    function displayDomains() {
-                        if (!domainsList) return;
-                        domainsList.innerHTML = '';
-                        tempDomains.forEach((domain, index) => {
-                            const domainElement = document.createElement('div');
-                            domainElement.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; margin-bottom: 4px; background: rgba(255,255,255,0.1); border-radius: 4px;';
-                            domainElement.innerHTML = \`
-                                <span>\${domain}</span>
-                                <button type="button" onclick="window.removeTempDomain(\${index})" class="glass-btn-small">Remove</button>
-                            \`;
-                            domainsList.appendChild(domainElement);
-                        });
-                    }
+                    <div style="display: flex; gap: 10px; margin-top: 1.5rem;">
+                        <button type="button" id="saveRule" class="btn-primary">Save Rule</button>
+                        <button type="button" id="cancelRule" class="glass-btn">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        `,
+        script: `
+            console.log('Loading enhanced channel rules plugin...');
+            
+            // Wrap in IIFE to avoid variable conflicts
+            (function() {
+                const rulesServerSelect = document.getElementById('rulesServerSelect');
+                const rulesChannelSelect = document.getElementById('rulesChannelSelect');
+                const rulesLogChannelSelect = document.getElementById('rulesLogChannelSelect');
+                const channelRulesSettings = document.getElementById('channelRulesSettings');
+                const rulesEnabled = document.getElementById('rulesEnabled');
+                const rulesList = document.getElementById('rulesList');
+                const noRulesMessage = document.getElementById('noRulesMessage');
+                const addRuleBtn = document.getElementById('addRuleBtn');
+                const saveChannelRules = document.getElementById('saveChannelRules');
+                const deleteChannelRules = document.getElementById('deleteChannelRules');
+                const btnText = saveChannelRules ? saveChannelRules.querySelector('.btn-text') : null;
+                const btnLoader = saveChannelRules ? saveChannelRules.querySelector('.btn-loader') : null;
+                
+                // Modal elements
+                const ruleModal = document.getElementById('ruleModal');
+                const ruleType = document.getElementById('ruleType');
+                const ruleAction = document.getElementById('ruleAction');
+                const customMessage = document.getElementById('customMessage');
+                const saveRule = document.getElementById('saveRule');
+                const cancelRule = document.getElementById('cancelRule');
+                
+                // Dynamic config elements
+                const domainsConfig = document.getElementById('domainsConfig');
+                const textsConfig = document.getElementById('textsConfig');
+                const extensionsConfig = document.getElementById('extensionsConfig');
+                const fileSizeConfig = document.getElementById('fileSizeConfig');
+                const lengthConfig = document.getElementById('lengthConfig');
+                
+                const domainInput = document.getElementById('domainInput');
+                const addDomainBtn = document.getElementById('addDomainBtn');
+                const domainsList = document.getElementById('domainsList');
+                
+                const textInput = document.getElementById('textInput');
+                const addTextBtn = document.getElementById('addTextBtn');
+                const textsList = document.getElementById('textsList');
+                const textsLabel = document.getElementById('textsLabel');
+                
+                const extensionInput = document.getElementById('extensionInput');
+                const addExtensionBtn = document.getElementById('addExtensionBtn');
+                const extensionsList = document.getElementById('extensionsList');
+                
+                const maxFileSize = document.getElementById('maxFileSize');
+                const fileSizeUnit = document.getElementById('fileSizeUnit');
+                
+                const lengthValue = document.getElementById('lengthValue');
+                const lengthLabel = document.getElementById('lengthLabel');
+                
+                let currentServerId = null;
+                let currentChannelId = null;
+                let currentRules = [];
+                let tempDomains = [];
+                let tempTexts = [];
+                let tempExtensions = [];
+                let editingRuleIndex = -1;
+                
+                if (rulesServerSelect) {
+                    loadRulesServers();
                     
-                    function addText() {
-                        const text = textInput ? textInput.value.trim() : '';
-                        if (text && !tempTexts.includes(text)) {
-                            tempTexts.push(text);
-                            if (textInput) textInput.value = '';
-                            displayTexts();
-                        }
-                    }
-                    
-                    function displayTexts() {
-                        if (!textsList) return;
-                        textsList.innerHTML = '';
-                        tempTexts.forEach((text, index) => {
-                            const textElement = document.createElement('div');
-                            textElement.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; margin-bottom: 4px; background: rgba(255,255,255,0.1); border-radius: 4px;';
-                            textElement.innerHTML = \`
-                                <span>\${text}</span>
-                                <button type="button" onclick="window.removeTempText(\${index})" class="glass-btn-small">Remove</button>
-                            \`;
-                            textsList.appendChild(textElement);
-                        });
-                    }
-                    
-                    function addExtension() {
-                        const extension = extensionInput ? extensionInput.value.trim().toLowerCase().replace('.', '') : '';
-                        if (extension && !tempExtensions.includes(extension)) {
-                            tempExtensions.push(extension);
-                            if (extensionInput) extensionInput.value = '';
-                            displayExtensions();
-                        }
-                    }
-                    
-                    function displayExtensions() {
-                        if (!extensionsList) return;
-                        extensionsList.innerHTML = '';
-                        tempExtensions.forEach((extension, index) => {
-                            const extensionElement = document.createElement('div');
-                            extensionElement.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; margin-bottom: 4px; background: rgba(255,255,255,0.1); border-radius: 4px;';
-                            extensionElement.innerHTML = \`
-                                <span>.\${extension}</span>
-                                <button type="button" onclick="window.removeTempExtension(\${index})" class="glass-btn-small">Remove</button>
-                            \`;
-                            extensionsList.appendChild(extensionElement);
-                        });
-                    }
-                    
-                    window.removeTempDomain = function(index) {
-                        tempDomains.splice(index, 1);
-                        displayDomains();
-                    };
-                    
-                    window.removeTempText = function(index) {
-                        tempTexts.splice(index, 1);
-                        displayTexts();
-                    };
-                    
-                    window.removeTempExtension = function(index) {
-                        tempExtensions.splice(index, 1);
-                        displayExtensions();
-                    };
-                    
-                    function saveCurrentRule() {
-                        const type = ruleType ? ruleType.value : '';
-                        const action = ruleAction ? ruleAction.value : 'delete_and_dm';
-                        const message = customMessage ? customMessage.value.trim() : '';
-                        
-                        if (!type) {
-                            showNotification('Please select a rule type', 'error');
-                            return;
-                        }
-                        
-                        const rule = {
-                            type: type,
-                            action: action,
-                            customMessage: message || null
-                        };
-                        
-                        // Add type-specific data
-                        switch (type) {
-                            case 'blocked_domains':
-                                if (tempDomains.length === 0) {
-                                    showNotification('Please add at least one domain', 'error');
-                                    return;
-                                }
-                                rule.domains = [...tempDomains];
-                                break;
-                            case 'required_text':
-                            case 'blocked_text':
-                                if (tempTexts.length === 0) {
-                                    showNotification('Please add at least one text phrase', 'error');
-                                    return;
-                                }
-                                rule.texts = [...tempTexts];
-                                break;
-                            case 'block_file_extensions':
-                                if (tempExtensions.length === 0) {
-                                    showNotification('Please add at least one file extension', 'error');
-                                    return;
-                                }
-                                rule.extensions = [...tempExtensions];
-                                break;
-                            case 'block_large_files':
-                                const size = maxFileSize ? parseFloat(maxFileSize.value) : 0;
-                                const unit = fileSizeUnit ? fileSizeUnit.value : 'MB';
-                                
-                                if (!size || size <= 0) {
-                                    showNotification('Please enter a valid file size', 'error');
-                                    return;
-                                }
-                                
-                                // Convert to bytes
-                                const sizeInBytes = unit === 'KB' ? size * 1024 : size * 1024 * 1024;
-                                rule.maxSize = sizeInBytes;
-                                break;
-                            case 'min_length':
-                            case 'max_length':
-                                const length = lengthValue ? parseInt(lengthValue.value) : 0;
-                                if (!length || length < 1) {
-                                    showNotification('Please enter a valid length', 'error');
-                                    return;
-                                }
-                                rule.length = length;
-                                break;
-                        }
-                        
-                        if (editingRuleIndex >= 0) {
-                            currentRules[editingRuleIndex] = rule;
+                    rulesServerSelect.addEventListener('change', function() {
+                        const serverId = this.value;
+                        currentServerId = serverId;
+                        if (serverId) {
+                            loadRulesChannels(serverId);
+                            if (rulesChannelSelect) rulesChannelSelect.disabled = false;
                         } else {
-                            currentRules.push(rule);
+                            if (rulesChannelSelect) {
+                                rulesChannelSelect.disabled = true;
+                                rulesChannelSelect.innerHTML = '<option value="">Select a channel...</option>';
+                            }
+                            if (channelRulesSettings) channelRulesSettings.style.display = 'none';
                         }
-                        
-                        displayRules();
+                    });
+                }
+                
+                if (rulesChannelSelect) {
+                    rulesChannelSelect.addEventListener('change', function() {
+                        const channelId = this.value;
+                        currentChannelId = channelId;
+                        if (channelId && currentServerId) {
+                            loadChannelRules(currentServerId, channelId);
+                            loadRulesLogChannels(currentServerId);
+                            if (channelRulesSettings) channelRulesSettings.style.display = 'block';
+                        } else {
+                            if (channelRulesSettings) channelRulesSettings.style.display = 'none';
+                        }
+                    });
+                }
+                
+                if (addRuleBtn) {
+                    addRuleBtn.addEventListener('click', function() {
+                        openRuleModal();
+                    });
+                }
+                
+                if (saveChannelRules) {
+                    saveChannelRules.addEventListener('click', saveRules);
+                }
+                
+                if (deleteChannelRules) {
+                    deleteChannelRules.addEventListener('click', function() {
+                        if (confirm('Are you sure you want to delete all rules for this channel?')) {
+                            deleteAllRules();
+                        }
+                    });
+                }
+                
+                // Modal event listeners
+                if (ruleType) {
+                    ruleType.addEventListener('change', function() {
+                        updateRuleConfig(this.value);
+                    });
+                }
+                
+                if (saveRule) {
+                    saveRule.addEventListener('click', function() {
+                        saveCurrentRule();
+                    });
+                }
+                
+                if (cancelRule) {
+                    cancelRule.addEventListener('click', function() {
                         closeRuleModal();
-                        showNotification('Rule saved successfully', 'success');
+                    });
+                }
+                
+                // Domain management
+                if (addDomainBtn) {
+                    addDomainBtn.addEventListener('click', addDomain);
+                }
+                
+                if (domainInput) {
+                    domainInput.addEventListener('keypress', function(e) {
+                        if (e.key === 'Enter') {
+                            addDomain();
+                        }
+                    });
+                }
+                
+                // Text management
+                if (addTextBtn) {
+                    addTextBtn.addEventListener('click', addText);
+                }
+                
+                if (textInput) {
+                    textInput.addEventListener('keypress', function(e) {
+                        if (e.key === 'Enter') {
+                            addText();
+                        }
+                    });
+                }
+                
+                // Extension management
+                if (addExtensionBtn) {
+                    addExtensionBtn.addEventListener('click', addExtension);
+                }
+                
+                if (extensionInput) {
+                    extensionInput.addEventListener('keypress', function(e) {
+                        if (e.key === 'Enter') {
+                            addExtension();
+                        }
+                    });
+                }
+                
+                // Close modal when clicking outside
+                if (ruleModal) {
+                    ruleModal.addEventListener('click', function(e) {
+                        if (e.target === ruleModal) {
+                            closeRuleModal();
+                        }
+                    });
+                }
+                
+                async function loadRulesServers() {
+                    try {
+                        const response = await fetch('/api/servers');
+                        const servers = await response.json();
+                        
+                        rulesServerSelect.innerHTML = '<option value="">Select a server...</option>';
+                        servers.forEach(server => {
+                            const option = document.createElement('option');
+                            option.value = server.id;
+                            option.textContent = server.name;
+                            rulesServerSelect.appendChild(option);
+                        });
+                    } catch (error) {
+                        console.error('Error loading servers:', error);
+                        if (window.showNotification) {
+                            window.showNotification('Error loading servers', 'error');
+                        }
+                    }
+                }
+                
+                async function loadRulesChannels(serverId) {
+                    try {
+                        rulesChannelSelect.innerHTML = '<option value="">Loading...</option>';
+                        const response = await fetch(\`/api/channels/\${serverId}\`);
+                        const channels = await response.json();
+                        
+                        rulesChannelSelect.innerHTML = '<option value="">Select a channel...</option>';
+                        channels.forEach(channel => {
+                            const option = document.createElement('option');
+                            option.value = channel.id;
+                            option.textContent = \`# \${channel.name}\`;
+                            rulesChannelSelect.appendChild(option);
+                        });
+                    } catch (error) {
+                        console.error('Error loading channels:', error);
+                        rulesChannelSelect.innerHTML = '<option value="">Error loading channels</option>';
+                    }
+                }
+                
+                async function loadRulesLogChannels(serverId) {
+                    try {
+                        const response = await fetch(\`/api/channels/\${serverId}\`);
+                        const channels = await response.json();
+                        
+                        rulesLogChannelSelect.innerHTML = '<option value="">Select a channel for violation logs...</option>';
+                        channels.forEach(channel => {
+                            const option = document.createElement('option');
+                            option.value = channel.id;
+                            option.textContent = \`# \${channel.name}\`;
+                            rulesLogChannelSelect.appendChild(option);
+                        });
+                    } catch (error) {
+                        console.error('Error loading log channels:', error);
+                    }
+                }
+                
+                async function loadChannelRules(serverId, channelId) {
+                    try {
+                        const response = await fetch(\`/api/plugins/channelrules/rules/\${serverId}/\${channelId}\`);
+                        const rules = await response.json();
+                        
+                        if (rulesEnabled) rulesEnabled.checked = rules.enabled || false;
+                        if (rulesLogChannelSelect) rulesLogChannelSelect.value = rules.logChannelId || '';
+                        
+                        currentRules = rules.rules || [];
+                        displayRules();
+                    } catch (error) {
+                        console.error('Error loading channel rules:', error);
+                        if (window.showNotification) {
+                            window.showNotification('Error loading channel rules', 'error');
+                        }
+                    }
+                }
+                
+                function displayRules() {
+                    if (!rulesList) return;
+                    
+                    if (currentRules.length === 0) {
+                        rulesList.innerHTML = '<div style="opacity: 0.6; text-align: center; padding: 20px;">No rules configured for this channel</div>';
+                        return;
                     }
                     
-                    async function saveRules() {
-                        if (!currentServerId || !currentChannelId) {
-                            showNotification('Please select a server and channel', 'error');
-                            return;
-                        }
+                    rulesList.innerHTML = '';
+                    
+                    currentRules.forEach((rule, index) => {
+                        const ruleElement = document.createElement('div');
+                        ruleElement.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 12px; margin-bottom: 8px; background: rgba(255,255,255,0.1); border-radius: 8px; border-left: 4px solid #7289da;';
                         
-                        try {
-                            if (btnText) btnText.style.display = 'none';
-                            if (btnLoader) btnLoader.style.display = 'inline';
-                            if (saveChannelRules) saveChannelRules.disabled = true;
-                            
-                            const settings = {
-                                enabled: rulesEnabled ? rulesEnabled.checked : false,
-                                rules: currentRules,
-                                logChannelId: rulesLogChannelSelect ? rulesLogChannelSelect.value || null : null
-                            };
-                            
-                            const response = await fetch(\`/api/plugins/channelrules/rules/\${currentServerId}/\${currentChannelId}\`, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json'
-                                },
-                                body: JSON.stringify(settings)
-                            });
-                            
-                            const result = await response.json();
-                            
-                            if (response.ok) {
-                                showNotification('Channel rules saved successfully!', 'success');
-                            } else {
-                                throw new Error(result.error || 'Failed to save rules');
-                            }
-                        } catch (error) {
-                            console.error('Error saving rules:', error);
-                            showNotification(error.message, 'error');
-                        } finally {
-                            if (btnText) btnText.style.display = 'inline';
-                            if (btnLoader) btnLoader.style.display = 'none';
-                            if (saveChannelRules) saveChannelRules.disabled = false;
-                        }
+                        const ruleInfo = getRuleDisplayInfo(rule);
+                        
+                        ruleElement.innerHTML = \`
+                            <div>
+                                <div style="font-weight: 600; margin-bottom: 4px;">\${ruleInfo.title}</div>
+                                <div style="font-size: 0.9rem; opacity: 0.8;">\${ruleInfo.description}</div>
+                                <div style="font-size: 0.8rem; opacity: 0.6; margin-top: 2px;">Action: \${getActionDisplay(rule.action)}</div>
+                            </div>
+                            <div style="display: flex; gap: 8px;">
+                                <button type="button" onclick="window.editChannelRule(\${index})" class="glass-btn-small">Edit</button>
+                                <button type="button" onclick="window.removeChannelRule(\${index})" class="glass-btn-small">Remove</button>
+                            </div>
+                        \`;
+                        rulesList.appendChild(ruleElement);
+                    });
+                }
+                
+                function getRuleDisplayInfo(rule) {
+                    const typeDisplays = {
+                        // File requirement rules
+                        'must_contain_audio': { title: 'Must Contain Audio', description: 'Messages must include audio files' },
+                        'must_contain_image': { title: 'Must Contain Image', description: 'Messages must include image files' },
+                        'must_contain_video': { title: 'Must Contain Video', description: 'Messages must include video files' },
+                        'must_contain_file': { title: 'Must Contain File', description: 'Messages must include any file attachment' },
+                        
+                        // File blocking rules
+                        'block_audio': { title: 'Block Audio', description: 'Audio files are blocked' },
+                        'block_images': { title: 'Block Images', description: 'Image files are blocked' },
+                        'block_videos': { title: 'Block Videos', description: 'Video files are blocked' },
+                        'block_all_files': { title: 'Block All Files', description: 'All file attachments are blocked' },
+                        'block_file_extensions': { title: 'Block Extensions', description: \`Blocked: .\${(rule.extensions || []).join(', .')}\` },
+                        'block_large_files': { title: 'Block Large Files', description: \`Files over \${formatFileSize(rule.maxSize || 10485760)} are blocked\` },
+                        
+                        // Content rules
+                        'blocked_domains': { title: 'Blocked Domains', description: \`Blocked: \${(rule.domains || []).join(', ')}\` },
+                        'required_text': { title: 'Required Text', description: \`Must contain: \${(rule.texts || []).join(', ')}\` },
+                        'blocked_text': { title: 'Blocked Text', description: \`Cannot contain: \${(rule.texts || []).join(', ')}\` },
+                        'min_length': { title: 'Minimum Length', description: \`Messages must be at least \${rule.length || 0} characters\` },
+                        'max_length': { title: 'Maximum Length', description: \`Messages must be no more than \${rule.length || 2000} characters\` }
+                    };
+                    
+                    return typeDisplays[rule.type] || { title: rule.type, description: 'Custom rule' };
+                }
+                
+                function getActionDisplay(action) {
+                    const displayMap = {
+                        'delete': 'Delete Message',
+                        'dm': 'Send DM',
+                        'delete_and_dm': 'Delete & DM'
+                    };
+                    return displayMap[action] || action;
+                }
+                
+                function formatFileSize(bytes) {
+                    if (bytes === 0) return '0 Bytes';
+                    const k = 1024;
+                    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                    const i = Math.floor(Math.log(bytes) / Math.log(k));
+                    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+                }
+                
+                window.editChannelRule = function(index) {
+                    editingRuleIndex = index;
+                    const rule = currentRules[index];
+                    
+                    if (ruleType) ruleType.value = rule.type;
+                    if (ruleAction) ruleAction.value = rule.action;
+                    if (customMessage) customMessage.value = rule.customMessage || '';
+                    
+                    updateRuleConfig(rule.type);
+                    
+                    // Populate specific rule data
+                    if (rule.type === 'blocked_domains' && rule.domains) {
+                        tempDomains = [...rule.domains];
+                        displayDomains();
                     }
                     
-                    async function deleteAllRules() {
-                        if (!currentServerId || !currentChannelId) {
-                            showNotification('Please select a server and channel', 'error');
-                            return;
-                        }
+                    if ((rule.type === 'required_text' || rule.type === 'blocked_text') && rule.texts) {
+                        tempTexts = [...rule.texts];
+                        displayTexts();
+                    }
+                    
+                    if (rule.type === 'block_file_extensions' && rule.extensions) {
+                        tempExtensions = [...rule.extensions];
+                        displayExtensions();
+                    }
+                    
+                    if (rule.type === 'block_large_files' && rule.maxSize) {
+                        const sizeInMB = rule.maxSize / (1024 * 1024);
+                        if (maxFileSize) maxFileSize.value = sizeInMB;
+                        if (fileSizeUnit) fileSizeUnit.value = 'MB';
+                    }
+                    
+                    if ((rule.type === 'min_length' || rule.type === 'max_length') && lengthValue) {
+                        lengthValue.value = rule.length || '';
+                    }
+                    
+                    openRuleModal();
+                };
+                
+                window.removeChannelRule = function(index) {
+                    if (confirm('Are you sure you want to remove this rule?')) {
+                        currentRules.splice(index, 1);
+                        displayRules();
+                    }
+                };
+                
+                function openRuleModal() {
+                    if (ruleModal) {
+                        ruleModal.style.display = 'flex';
                         
-                        try {
-                            const response = await fetch(\`/api/plugins/channelrules/rules/\${currentServerId}/\${currentChannelId}\`, {
-                                method: 'DELETE'
-                            });
-                            
-                            const result = await response.json();
-                            
-                            if (response.ok) {
-                                currentRules = [];
-                                if (rulesEnabled) rulesEnabled.checked = false;
-                                if (rulesLogChannelSelect) rulesLogChannelSelect.value = '';
-                                displayRules();
-                                showNotification('All rules deleted successfully!', 'success');
-                            } else {
-                                throw new Error(result.error || 'Failed to delete rules');
-                            }
-                        } catch (error) {
-                            console.error('Error deleting rules:', error);
-                            showNotification(error.message, 'error');
+                        if (editingRuleIndex === -1) {
+                            // Reset form for new rule
+                            if (ruleType) ruleType.value = '';
+                            if (ruleAction) ruleAction.value = 'delete_and_dm';
+                            if (customMessage) customMessage.value = '';
+                            tempDomains = [];
+                            tempTexts = [];
+                            tempExtensions = [];
+                            if (maxFileSize) maxFileSize.value = '';
+                            if (fileSizeUnit) fileSizeUnit.value = 'MB';
+                            updateRuleConfig('');
                         }
                     }
-                })();
+                }
+                
+                function closeRuleModal() {
+                    if (ruleModal) {
+                        ruleModal.style.display = 'none';
+                        editingRuleIndex = -1;
+                    }
+                }
+                
+                function updateRuleConfig(type) {
+                    // Hide all config sections
+                    if (domainsConfig) domainsConfig.style.display = 'none';
+                    if (textsConfig) textsConfig.style.display = 'none';
+                    if (extensionsConfig) extensionsConfig.style.display = 'none';
+                    if (fileSizeConfig) fileSizeConfig.style.display = 'none';
+                    if (lengthConfig) lengthConfig.style.display = 'none';
+                    
+                    // Show relevant config section
+                    switch (type) {
+                        case 'blocked_domains':
+                            if (domainsConfig) domainsConfig.style.display = 'block';
+                            displayDomains();
+                            break;
+                        case 'required_text':
+                            if (textsConfig) {
+                                textsConfig.style.display = 'block';
+                                if (textsLabel) textsLabel.textContent = 'Required Text Phrases';
+                            }
+                            displayTexts();
+                            break;
+                        case 'blocked_text':
+                            if (textsConfig) {
+                                textsConfig.style.display = 'block';
+                                if (textsLabel) textsLabel.textContent = 'Blocked Text Phrases';
+                            }
+                            displayTexts();
+                            break;
+                        case 'block_file_extensions':
+                            if (extensionsConfig) extensionsConfig.style.display = 'block';
+                            displayExtensions();
+                            break;
+                        case 'block_large_files':
+                            if (fileSizeConfig) fileSizeConfig.style.display = 'block';
+                            break;
+                        case 'min_length':
+                            if (lengthConfig) {
+                                lengthConfig.style.display = 'block';
+                                if (lengthLabel) lengthLabel.textContent = 'Minimum Length (characters)';
+                            }
+                            break;
+                        case 'max_length':
+                            if (lengthConfig) {
+                                lengthConfig.style.display = 'block';
+                                if (lengthLabel) lengthLabel.textContent = 'Maximum Length (characters)';
+                            }
+                            break;
+                    }
+                }
+                
+                function addDomain() {
+                    const domain = domainInput ? domainInput.value.trim() : '';
+                    if (domain && !tempDomains.includes(domain)) {
+                        tempDomains.push(domain);
+                        if (domainInput) domainInput.value = '';
+                        displayDomains();
+                    }
+                }
+                
+                function displayDomains() {
+                    if (!domainsList) return;
+                    domainsList.innerHTML = '';
+                    tempDomains.forEach((domain, index) => {
+                        const domainElement = document.createElement('div');
+                        domainElement.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; margin-bottom: 4px; background: rgba(255,255,255,0.1); border-radius: 4px;';
+                        domainElement.innerHTML = \`
+                            <span>\${domain}</span>
+                            <button type="button" onclick="window.removeTempDomain(\${index})" class="glass-btn-small">Remove</button>
+                        \`;
+                        domainsList.appendChild(domainElement);
+                    });
+                }
+                
+                function addText() {
+                    const text = textInput ? textInput.value.trim() : '';
+                    if (text && !tempTexts.includes(text)) {
+                        tempTexts.push(text);
+                        if (textInput) textInput.value = '';
+                        displayTexts();
+                    }
+                }
+                
+                function displayTexts() {
+                    if (!textsList) return;
+                    textsList.innerHTML = '';
+                    tempTexts.forEach((text, index) => {
+                        const textElement = document.createElement('div');
+                        textElement.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; margin-bottom: 4px; background: rgba(255,255,255,0.1); border-radius: 4px;';
+                        textElement.innerHTML = \`
+                            <span>\${text}</span>
+                            <button type="button" onclick="window.removeTempText(\${index})" class="glass-btn-small">Remove</button>
+                        \`;
+                        textsList.appendChild(textElement);
+                    });
+                }
+                
+                function addExtension() {
+                    const extension = extensionInput ? extensionInput.value.trim().toLowerCase().replace('.', '') : '';
+                    if (extension && !tempExtensions.includes(extension)) {
+                        tempExtensions.push(extension);
+                        if (extensionInput) extensionInput.value = '';
+                        displayExtensions();
+                    }
+                }
+                
+                function displayExtensions() {
+                    if (!extensionsList) return;
+                    extensionsList.innerHTML = '';
+                    tempExtensions.forEach((extension, index) => {
+                        const extensionElement = document.createElement('div');
+                        extensionElement.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; margin-bottom: 4px; background: rgba(255,255,255,0.1); border-radius: 4px;';
+                        extensionElement.innerHTML = \`
+                            <span>.\${extension}</span>
+                            <button type="button" onclick="window.removeTempExtension(\${index})" class="glass-btn-small">Remove</button>
+                        \`;
+                        extensionsList.appendChild(extensionElement);
+                    });
+                }
+                
+                window.removeTempDomain = function(index) {
+                    tempDomains.splice(index, 1);
+                    displayDomains();
+                };
+                
+                window.removeTempText = function(index) {
+                    tempTexts.splice(index, 1);
+                    displayTexts();
+                };
+                
+                window.removeTempExtension = function(index) {
+                    tempExtensions.splice(index, 1);
+                    displayExtensions();
+                };
+                
+                function saveCurrentRule() {
+                    const type = ruleType ? ruleType.value : '';
+                    const action = ruleAction ? ruleAction.value : 'delete_and_dm';
+                    const message = customMessage ? customMessage.value.trim() : '';
+                    
+                    if (!type) {
+                        if (window.showNotification) {
+                            window.showNotification('Please select a rule type', 'error');
+                        }
+                        return;
+                    }
+                    
+                    const rule = {
+                        type: type,
+                        action: action,
+                        customMessage: message || null
+                    };
+                    
+                    // Add type-specific data
+                    switch (type) {
+                        case 'blocked_domains':
+                            if (tempDomains.length === 0) {
+                                if (window.showNotification) {
+                                    window.showNotification('Please add at least one domain', 'error');
+                                }
+                                return;
+                            }
+                            rule.domains = [...tempDomains];
+                            break;
+                        case 'required_text':
+                        case 'blocked_text':
+                            if (tempTexts.length === 0) {
+                                if (window.showNotification) {
+                                    window.showNotification('Please add at least one text phrase', 'error');
+                                }
+                                return;
+                            }
+                            rule.texts = [...tempTexts];
+                            break;
+                        case 'block_file_extensions':
+                            if (tempExtensions.length === 0) {
+                                if (window.showNotification) {
+                                    window.showNotification('Please add at least one file extension', 'error');
+                                }
+                                return;
+                            }
+                            rule.extensions = [...tempExtensions];
+                            break;
+                        case 'block_large_files':
+                            const size = maxFileSize ? parseFloat(maxFileSize.value) : 0;
+                            const unit = fileSizeUnit ? fileSizeUnit.value : 'MB';
+                            
+                            if (!size || size <= 0) {
+                                if (window.showNotification) {
+                                    window.showNotification('Please enter a valid file size', 'error');
+                                }
+                                return;
+                            }
+                            
+                            // Convert to bytes
+                            const sizeInBytes = unit === 'KB' ? size * 1024 : size * 1024 * 1024;
+                            rule.maxSize = sizeInBytes;
+                            break;
+                        case 'min_length':
+                        case 'max_length':
+                            const length = lengthValue ? parseInt(lengthValue.value) : 0;
+                            if (!length || length < 1) {
+                                if (window.showNotification) {
+                                    window.showNotification('Please enter a valid length', 'error');
+                                }
+                                return;
+                            }
+                            rule.length = length;
+                            break;
+                    }
+                    
+                    if (editingRuleIndex >= 0) {
+                        currentRules[editingRuleIndex] = rule;
+                    } else {
+                        currentRules.push(rule);
+                    }
+                    
+                    displayRules();
+                    closeRuleModal();
+                    if (window.showNotification) {
+                        window.showNotification('Rule saved successfully', 'success');
+                    }
+                }
+                
+                async function saveRules() {
+                    if (!currentServerId || !currentChannelId) {
+                        if (window.showNotification) {
+                            window.showNotification('Please select a server and channel', 'error');
+                        }
+                        return;
+                    }
+                    
+                    try {
+                        if (btnText) btnText.style.display = 'none';
+                        if (btnLoader) btnLoader.style.display = 'inline';
+                        if (saveChannelRules) saveChannelRules.disabled = true;
+                        
+                        const settings = {
+                            enabled: rulesEnabled ? rulesEnabled.checked : false,
+                            rules: currentRules,
+                            logChannelId: rulesLogChannelSelect ? rulesLogChannelSelect.value || null : null
+                        };
+                        
+                        const response = await fetch(\`/api/plugins/channelrules/rules/\${currentServerId}/\${currentChannelId}\`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(settings)
+                        });
+                        
+                        const result = await response.json();
+                        
+                        if (response.ok) {
+                            if (window.showNotification) {
+                                window.showNotification('Channel rules saved successfully!', 'success');
+                            }
+                        } else {
+                            throw new Error(result.error || 'Failed to save rules');
+                        }
+                    } catch (error) {
+                        console.error('Error saving rules:', error);
+                        if (window.showNotification) {
+                            window.showNotification(error.message, 'error');
+                        }
+                    } finally {
+                        if (btnText) btnText.style.display = 'inline';
+                        if (btnLoader) btnLoader.style.display = 'none';
+                        if (saveChannelRules) saveChannelRules.disabled = false;
+                    }
+                }
+                
+                async function deleteAllRules() {
+                    if (!currentServerId || !currentChannelId) {
+                        if (window.showNotification) {
+                            window.showNotification('Please select a server and channel', 'error');
+                        }
+                        return;
+                    }
+                    
+                    try {
+                        const response = await fetch(\`/api/plugins/channelrules/rules/\${currentServerId}/\${currentChannelId}\`, {
+                            method: 'DELETE'
+                        });
+                        
+                        const result = await response.json();
+                        
+                        if (response.ok) {
+                            currentRules = [];
+                            if (rulesEnabled) rulesEnabled.checked = false;
+                            if (rulesLogChannelSelect) rulesLogChannelSelect.value = '';
+                            displayRules();
+                            if (window.showNotification) {
+                                window.showNotification('All rules deleted successfully!', 'success');
+                            }
+                        } else {
+                            throw new Error(result.error || 'Failed to delete rules');
+                        }
+                    } catch (error) {
+                        console.error('Error deleting rules:', error);
+                        if (window.showNotification) {
+                            window.showNotification(error.message, 'error');
+                        }
+                    }
+                }
+            })();
             `
         };
     }
