@@ -221,6 +221,17 @@ app.get('/api/channels/:serverId', ensureAuthenticated, async (req, res) => {
     }
 });
 
+// API endpoint to expose plugin components
+app.get('/api/plugins/components', ensureAuthenticated, (req, res) => {
+    try {
+        const components = pluginLoader.getPluginComponents();
+        res.json(components);
+    } catch (error) {
+        console.error('Error getting plugin components:', error);
+        res.status(500).json({ error: 'Failed to get plugin components' });
+    }
+});
+
 // Plugin API endpoint
 app.post('/api/message', ensureAuthenticated, upload.array('attachments'), async (req, res) => {
     try {

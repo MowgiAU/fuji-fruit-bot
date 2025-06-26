@@ -104,15 +104,20 @@ class WordFilterPlugin {
                     return res.status(403).json({ error: 'No admin permissions' });
                 }
                 
-                if (!word || word.trim() === '') {
-                    return res.status(400).json({ error: 'Word cannot be empty' });
-                }
-                
-                if (!this.filterSettings[serverId]) {
-                    this.filterSettings[serverId] = { enabled: false, logChannelId: null, blockedWords: [] };
+                if (!word || !word.trim()) {
+                    return res.status(400).json({ error: 'Word is required' });
                 }
                 
                 const normalizedWord = word.trim().toLowerCase();
+                
+                if (!this.filterSettings[serverId]) {
+                    this.filterSettings[serverId] = {
+                        enabled: false,
+                        logChannelId: null,
+                        blockedWords: []
+                    };
+                }
+                
                 if (!this.filterSettings[serverId].blockedWords.includes(normalizedWord)) {
                     this.filterSettings[serverId].blockedWords.push(normalizedWord);
                     this.saveFilterSettings();
@@ -176,88 +181,41 @@ class WordFilterPlugin {
                 let censoredContent = this.sanitizeMentions(message.content);
                 detectedWords.forEach(word => {
                     const regex = new RegExp(word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-                    censoredContent = censoredContent.replace(regex, '❌');
+                    censoredContent = censoredContent.replace(regex, '*'.repeat(word.length));
                 });
                 
-                // Reply in the same channel with sanitized content
-                const replyContent = `${message.author}, your message contained blocked words and was removed:\n\n> ${censoredContent}`;
-                await message.channel.send(replyContent);
-                
-                // Log to designated channel if configured
+                // Log to channel if configured
                 if (settings.logChannelId) {
                     const logChannel = this.client.channels.cache.get(settings.logChannelId);
                     if (logChannel) {
-                        // Sanitize content for logs too
-                        const sanitizedOriginal = this.sanitizeMentions(message.content);
-                        const sanitizedCensored = this.sanitizeMentions(censoredContent);
-                        
-                        const logEmbed = {
-                            color: 0xff6b6b,
-                            title: '🚫 Message Filtered',
+                        const embed = {
+                            color: 0xff0000,
+                            title: '🚫 Word Filter Alert',
                             fields: [
-                                {
-                                    name: 'User',
-                                    value: `${message.author} (${message.author.tag})`,
-                                    inline: true
-                                },
-                                {
-                                    name: 'Channel',
-                                    value: `${message.channel}`,
-                                    inline: true
-                                },
-                                {
-                                    name: 'Detected Words',
-                                    value: detectedWords.map(w => `\`${w}\``).join(', '),
-                                    inline: false
-                                },
-                                {
-                                    name: 'Original Message (Sanitized)',
-                                    value: sanitizedOriginal.length > 1000 ? sanitizedOriginal.substring(0, 1000) + '...' : sanitizedOriginal,
-                                    inline: false
-                                },
-                                {
-                                    name: 'Censored Version',
-                                    value: sanitizedCensored.length > 1000 ? sanitizedCensored.substring(0, 1000) + '...' : sanitizedCensored,
-                                    inline: false
-                                }
+                                { name: 'User', value: `${message.author.tag} (${message.author.id})`, inline: true },
+                                { name: 'Channel', value: `${message.channel.name}`, inline: true },
+                                { name: 'Detected Words', value: detectedWords.join(', '), inline: false },
+                                { name: 'Original Message', value: censoredContent.substring(0, 1024), inline: false }
                             ],
-                            timestamp: new Date().toISOString(),
-                            footer: {
-                                text: `Message ID: ${message.id}`
-                            }
+                            timestamp: new Date().toISOString()
                         };
                         
-                        await logChannel.send({ embeds: [logEmbed] });
+                        await logChannel.send({ embeds: [embed] });
                     }
                 }
                 
-                console.log(`Filtered message from ${message.author.tag} in ${message.guild.name}#${message.channel.name}: detected words [${detectedWords.join(', ')}]`);
-                
             } catch (error) {
-                console.error('Error filtering message:', error);
+                console.error('Error processing filtered message:', error);
             }
         });
     }
 
     sanitizeMentions(content) {
+        // Replace @everyone and @here with sanitized versions
         return content
-            // Sanitize @everyone and @here
-            .replace(/@everyone/gi, '@​everyone') // Zero-width space
-            .replace(/@here/gi, '@​here')
-            // Sanitize user mentions <@!123> or <@123>
-            .replace(/<@!?\d+>/g, (match) => {
-                return match.replace('@', '@​'); // Zero-width space
-            })
-            // Sanitize role mentions <@&123>
-            .replace(/<@&\d+>/g, (match) => {
-                return match.replace('@', '@​'); // Zero-width space
-            })
-            // Sanitize channel mentions <#123>
-            .replace(/<#\d+>/g, (match) => {
-                return match.replace('#', '#​'); // Zero-width space
-            })
-            // Sanitize any remaining @ symbols that could be used for mentions
-            .replace(/@(?!​)/g, '@​'); // Add zero-width space after @ if not already present
+            .replace(/@everyone/g, '@​everyone') // Add zero-width space
+            .replace(/@here/g, '@​here')       // Add zero-width space
+            .replace(/(?<!<)@(?!\u200B)/g, '@​'); // Add zero-width space after @ if not already present
     }
 
     detectBlockedWords(content, blockedWords) {
@@ -277,12 +235,329 @@ class WordFilterPlugin {
 
     getFrontendComponent() {
         return {
+            // Plugin identification
             id: 'wordfilter-plugin',
             name: 'Word Filter',
-            description: 'Automatically filter inappropriate words',
+            description: 'Automatically detect and filter inappropriate words from messages',
             icon: '🚫',
-            html: `<!-- Frontend component will be handled by dashboard -->`,
-            script: `console.log('Word filter plugin frontend loaded');`
+            version: '1.0.0',
+            
+            // NEW: Plugin defines its own targets (no more dashboard hardcoding!)
+            containerId: 'wordFilterPluginContainer',  // Where to inject HTML
+            pageId: 'word-filter',                     // Page ID for navigation
+            navIcon: '🚫',                            // Icon for navigation
+            
+            // Complete HTML and script
+            html: `
+                <div class="plugin-container">
+                    <div class="plugin-header">
+                        <h3><span class="plugin-icon">🚫</span> Word Filter</h3>
+                        <p>Automatically detect and filter inappropriate words from messages</p>
+                    </div>
+                    
+                    <form id="wordFilterForm">
+                        <div class="form-group">
+                            <label for="filterServerSelect">Server</label>
+                            <select id="filterServerSelect" required>
+                                <option value="">Select a server...</option>
+                            </select>
+                        </div>
+                        
+                        <div id="filterSettings" style="display: none;">
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" id="filterEnabled" style="margin-right: 8px;">
+                                    Enable Word Filter
+                                </label>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="logChannelSelect">Log Channel (Optional)</label>
+                                <select id="logChannelSelect">
+                                    <option value="">Select a channel for logs...</option>
+                                </select>
+                                <small style="opacity: 0.7; display: block; margin-top: 4px;">
+                                    Choose where filtered message logs will be sent
+                                </small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="newWord">Add Blocked Word</label>
+                                <div style="display: flex; gap: 10px;">
+                                    <input type="text" id="newWord" placeholder="Enter word to block...">
+                                    <button type="button" id="addWordBtn" style="padding: 8px 12px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: white; cursor: pointer;">Add Word</button>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Blocked Words</label>
+                                <div id="blockedWordsList" style="min-height: 100px; background: rgba(255,255,255,0.05); border-radius: 8px; padding: 10px;">
+                                    <div id="noWordsMessage" style="opacity: 0.6; text-align: center; padding: 20px;">
+                                        No blocked words configured
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <button type="button" id="saveFilterSettings" class="btn-primary">
+                                <span class="btn-text">Save Settings</span>
+                                <span class="btn-loader" style="display: none;">Saving...</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            `,
+            script: `
+                // Word Filter Plugin Frontend Logic
+                (function() {
+                    const filterServerSelect = document.getElementById('filterServerSelect');
+                    const logChannelSelect = document.getElementById('logChannelSelect');
+                    const filterSettings = document.getElementById('filterSettings');
+                    const filterEnabled = document.getElementById('filterEnabled');
+                    const newWord = document.getElementById('newWord');
+                    const addWordBtn = document.getElementById('addWordBtn');
+                    const blockedWordsList = document.getElementById('blockedWordsList');
+                    const noWordsMessage = document.getElementById('noWordsMessage');
+                    const saveFilterSettings = document.getElementById('saveFilterSettings');
+                    const btnText = saveFilterSettings ? saveFilterSettings.querySelector('.btn-text') : null;
+                    const btnLoader = saveFilterSettings ? saveFilterSettings.querySelector('.btn-loader') : null;
+                    
+                    let currentServerId = null;
+                    let currentSettings = null;
+                    
+                    // Initialize if elements exist
+                    if (filterServerSelect) {
+                        filterServerSelect.addEventListener('change', function() {
+                            const serverId = this.value;
+                            if (serverId) {
+                                currentServerId = serverId;
+                                loadFilterChannels(serverId);
+                                loadFilterSettings(serverId);
+                                if (filterSettings) filterSettings.style.display = 'block';
+                            } else {
+                                if (filterSettings) filterSettings.style.display = 'none';
+                            }
+                        });
+                        loadFilterServers();
+                    }
+                    
+                    if (addWordBtn) {
+                        addWordBtn.addEventListener('click', addBlockedWord);
+                    }
+                    
+                    if (newWord) {
+                        newWord.addEventListener('keypress', function(e) {
+                            if (e.key === 'Enter') {
+                                addBlockedWord();
+                            }
+                        });
+                    }
+                    
+                    if (saveFilterSettings) {
+                        saveFilterSettings.addEventListener('click', saveFilterSettings_internal);
+                    }
+                    
+                    async function loadFilterServers() {
+                        try {
+                            const response = await fetch('/api/servers');
+                            const servers = await response.json();
+                            
+                            if (filterServerSelect) {
+                                filterServerSelect.innerHTML = '<option value="">Select a server...</option>';
+                                servers.forEach(server => {
+                                    const option = document.createElement('option');
+                                    option.value = server.id;
+                                    option.textContent = server.name;
+                                    filterServerSelect.appendChild(option);
+                                });
+                            }
+                        } catch (error) {
+                            console.error('Error loading servers:', error);
+                            if (window.showNotification) {
+                                window.showNotification('Error loading servers', 'error');
+                            }
+                        }
+                    }
+                    
+                    async function loadFilterChannels(serverId) {
+                        try {
+                            if (logChannelSelect) {
+                                logChannelSelect.innerHTML = '<option value="">Loading...</option>';
+                                const response = await fetch(\`/api/channels/\${serverId}\`);
+                                const channels = await response.json();
+                                
+                                logChannelSelect.innerHTML = '<option value="">Select a channel for logs...</option>';
+                                channels.forEach(channel => {
+                                    const option = document.createElement('option');
+                                    option.value = channel.id;
+                                    option.textContent = \`# \${channel.name}\`;
+                                    logChannelSelect.appendChild(option);
+                                });
+                            }
+                        } catch (error) {
+                            console.error('Error loading channels:', error);
+                            if (logChannelSelect) {
+                                logChannelSelect.innerHTML = '<option value="">Error loading channels</option>';
+                            }
+                        }
+                    }
+                    
+                    async function loadFilterSettings(serverId) {
+                        try {
+                            const response = await fetch(\`/api/plugins/wordfilter/settings/\${serverId}\`);
+                            const settings = await response.json();
+                            
+                            currentSettings = settings;
+                            
+                            if (filterEnabled) filterEnabled.checked = settings.enabled;
+                            if (settings.logChannelId && logChannelSelect) {
+                                logChannelSelect.value = settings.logChannelId;
+                            }
+                            
+                            displayBlockedWords(settings.blockedWords || []);
+                        } catch (error) {
+                            console.error('Error loading filter settings:', error);
+                            if (window.showNotification) {
+                                window.showNotification('Error loading filter settings', 'error');
+                            }
+                        }
+                    }
+                    
+                    function displayBlockedWords(words) {
+                        if (!blockedWordsList) return;
+                        
+                        if (words.length === 0) {
+                            blockedWordsList.innerHTML = '<div style="opacity: 0.6; text-align: center; padding: 20px;">No blocked words configured</div>';
+                            return;
+                        }
+                        
+                        blockedWordsList.innerHTML = '';
+                        words.forEach(word => {
+                            const wordElement = document.createElement('div');
+                            wordElement.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px; margin-bottom: 4px; background: rgba(255,255,255,0.1); border-radius: 6px;';
+                            wordElement.innerHTML = \`
+                                <span style="font-family: monospace;">\${word}</span>
+                                <button type="button" onclick="window.removeFilterWord('\${word}')" style="padding: 2px 8px; background: rgba(255,0,0,0.3); border: none; border-radius: 4px; color: white; cursor: pointer;">Remove</button>
+                            \`;
+                            blockedWordsList.appendChild(wordElement);
+                        });
+                    }
+                    
+                    async function addBlockedWord() {
+                        const word = newWord ? newWord.value.trim() : '';
+                        if (!word || !currentServerId) {
+                            if (window.showNotification) {
+                                window.showNotification('Please enter a word and select a server', 'error');
+                            }
+                            return;
+                        }
+                        
+                        try {
+                            const response = await fetch(\`/api/plugins/wordfilter/words/\${currentServerId}\`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({ word })
+                            });
+                            
+                            const result = await response.json();
+                            
+                            if (response.ok) {
+                                if (newWord) newWord.value = '';
+                                displayBlockedWords(result.blockedWords);
+                                currentSettings.blockedWords = result.blockedWords;
+                                if (window.showNotification) {
+                                    window.showNotification('Word added successfully', 'success');
+                                }
+                            } else {
+                                throw new Error(result.error || 'Failed to add word');
+                            }
+                        } catch (error) {
+                            console.error('Error adding word:', error);
+                            if (window.showNotification) {
+                                window.showNotification(error.message, 'error');
+                            }
+                        }
+                    }
+                    
+                    // Global function for removing words (called from HTML)
+                    window.removeFilterWord = async function(word) {
+                        if (!currentServerId) return;
+                        
+                        try {
+                            const response = await fetch(\`/api/plugins/wordfilter/words/\${currentServerId}/\${encodeURIComponent(word)}\`, {
+                                method: 'DELETE'
+                            });
+                            
+                            const result = await response.json();
+                            
+                            if (response.ok) {
+                                displayBlockedWords(result.blockedWords);
+                                currentSettings.blockedWords = result.blockedWords;
+                                if (window.showNotification) {
+                                    window.showNotification('Word removed successfully', 'success');
+                                }
+                            } else {
+                                throw new Error(result.error || 'Failed to remove word');
+                            }
+                        } catch (error) {
+                            console.error('Error removing word:', error);
+                            if (window.showNotification) {
+                                window.showNotification(error.message, 'error');
+                            }
+                        }
+                    };
+                    
+                    async function saveFilterSettings_internal() {
+                        if (!currentServerId) {
+                            if (window.showNotification) {
+                                window.showNotification('Please select a server first', 'error');
+                            }
+                            return;
+                        }
+                        
+                        try {
+                            if (btnText) btnText.style.display = 'none';
+                            if (btnLoader) btnLoader.style.display = 'inline';
+                            if (saveFilterSettings) saveFilterSettings.disabled = true;
+                            
+                            const settings = {
+                                enabled: filterEnabled ? filterEnabled.checked : false,
+                                logChannelId: logChannelSelect ? logChannelSelect.value || null : null,
+                                blockedWords: currentSettings?.blockedWords || []
+                            };
+                            
+                            const response = await fetch(\`/api/plugins/wordfilter/settings/\${currentServerId}\`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify(settings)
+                            });
+                            
+                            const result = await response.json();
+                            
+                            if (response.ok) {
+                                if (window.showNotification) {
+                                    window.showNotification('Filter settings saved successfully!', 'success');
+                                }
+                                currentSettings = settings;
+                            } else {
+                                throw new Error(result.error || 'Failed to save settings');
+                            }
+                        } catch (error) {
+                            console.error('Error saving settings:', error);
+                            if (window.showNotification) {
+                                window.showNotification(error.message, 'error');
+                            }
+                        } finally {
+                            if (btnText) btnText.style.display = 'inline';
+                            if (btnLoader) btnLoader.style.display = 'none';
+                            if (saveFilterSettings) saveFilterSettings.disabled = false;
+                        }
+                    }
+                })();
+            `
         };
     }
 }

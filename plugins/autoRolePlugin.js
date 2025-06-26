@@ -93,8 +93,7 @@ class AutoRolePlugin {
             console.error('Error saving level roles:', error);
         }
     }
-
-    setupRoutes() {
+	setupRoutes() {
         // Get all auto-role settings for a server
         this.app.get('/api/plugins/autorole/settings/:serverId', this.ensureAuthenticated, async (req, res) => {
             try {
@@ -382,8 +381,7 @@ class AutoRolePlugin {
             }
         });
     }
-
-    setupEventListeners() {
+	setupEventListeners() {
         // Member join event
         this.client.on('guildMemberAdd', async (member) => {
             await this.handleMemberJoin(member);
@@ -963,13 +961,21 @@ class AutoRolePlugin {
         console.log(`🔢 [EMOJI TEST] Char codes: ${Array.from(emoji).map(char => char.charCodeAt(0))}`);
         console.log(`✨ [EMOJI TEST] Unicode: ${Array.from(emoji).map(char => '\\u' + char.charCodeAt(0).toString(16).padStart(4, '0')).join('')}`);
     }
-
-    getFrontendComponent() {
+	getFrontendComponent() {
         return {
+            // Plugin identification
             id: 'auto-role-plugin',
             name: 'Auto-Role System',
             description: 'Manage automatic role assignment, reaction roles, and level-based roles',
             icon: '🎭',
+            version: '1.0.0',
+            
+            // NEW: Plugin defines its own targets (no more dashboard hardcoding!)
+            containerId: 'autoRolePluginContainer',   // Where to inject HTML
+            pageId: 'auto-role',                      // Page ID for navigation
+            navIcon: '🎭',                           // Icon for navigation
+            
+            // Complete HTML from the working plugin
             html: `
                 <div class="plugin-container">
                     <div class="plugin-header">
@@ -1193,9 +1199,10 @@ class AutoRolePlugin {
                 </div>
             `,
             script: `
-                console.log('Loading auto-role plugin...');
-                
+                // Auto-Role Plugin Frontend Logic
                 (function() {
+                    console.log('Loading auto-role plugin...');
+                    
                     let currentGuildId = null;
                     let serverRoles = [];
                     let levelRoles = [];
@@ -1312,7 +1319,9 @@ class AutoRolePlugin {
                             }
                         } catch (error) {
                             console.error('Error loading servers:', error);
-                            showNotification('Error loading servers', 'error');
+                            if (window.showNotification) {
+                                window.showNotification('Error loading servers', 'error');
+                            }
                         }
                     }
 
@@ -1583,14 +1592,18 @@ class AutoRolePlugin {
                             });
                             
                             if (response.ok) {
-                                showNotification('Reaction role message deleted', 'success');
+                                if (window.showNotification) {
+                                    window.showNotification('Reaction role message deleted', 'success');
+                                }
                                 await loadReactionRoles();
                             } else {
                                 throw new Error('Failed to delete message');
                             }
                         } catch (error) {
                             console.error('Error deleting reaction role:', error);
-                            showNotification('Error deleting reaction role message', 'error');
+                            if (window.showNotification) {
+                                window.showNotification('Error deleting reaction role message', 'error');
+                            }
                         }
                     };
 
@@ -1645,24 +1658,32 @@ class AutoRolePlugin {
                         const removeOldRoles = removeOldCheckbox ? removeOldCheckbox.checked : false;
                         
                         if (!level || level < 1) {
-                            showNotification('Please enter a valid level', 'error');
+                            if (window.showNotification) {
+                                window.showNotification('Please enter a valid level', 'error');
+                            }
                             return;
                         }
                         
                         if (!roleId) {
-                            showNotification('Please select a role', 'error');
+                            if (window.showNotification) {
+                                window.showNotification('Please select a role', 'error');
+                            }
                             return;
                         }
                         
                         // Check if level already exists
                         if (levelRoles.some(lr => lr.level === level)) {
-                            showNotification('A role is already configured for this level', 'error');
+                            if (window.showNotification) {
+                                window.showNotification('A role is already configured for this level', 'error');
+                            }
                             return;
                         }
                         
                         // Check if role is already used
                         if (levelRoles.some(lr => lr.roleId === roleId)) {
-                            showNotification('This role is already used for another level', 'error');
+                            if (window.showNotification) {
+                                window.showNotification('This role is already used for another level', 'error');
+                            }
                             return;
                         }
                         
@@ -1674,7 +1695,9 @@ class AutoRolePlugin {
                         
                         displayLevelRoles();
                         closeLevelRoleModal();
-                        showNotification('Level role added successfully', 'success');
+                        if (window.showNotification) {
+                            window.showNotification('Level role added successfully', 'success');
+                        }
                     }
 
                     function openReactionRoleModal() {
@@ -1726,29 +1749,39 @@ class AutoRolePlugin {
                         const description = descriptionInput ? descriptionInput.value.trim() : '';
                         
                         if (!emoji) {
-                            showNotification('Please enter an emoji', 'error');
+                            if (window.showNotification) {
+                                window.showNotification('Please enter an emoji', 'error');
+                            }
                             return;
                         }
                         
                         if (!roleId) {
-                            showNotification('Please select a role', 'error');
+                            if (window.showNotification) {
+                                window.showNotification('Please select a role', 'error');
+                            }
                             return;
                         }
                         
                         // Check if emoji or role already used
                         if (reactionRoleRoles.some(rr => rr.emoji === emoji)) {
-                            showNotification('This emoji is already used', 'error');
+                            if (window.showNotification) {
+                                window.showNotification('This emoji is already used', 'error');
+                            }
                             return;
                         }
                         
                         if (reactionRoleRoles.some(rr => rr.roleId === roleId)) {
-                            showNotification('This role is already used', 'error');
+                            if (window.showNotification) {
+                                window.showNotification('This role is already used', 'error');
+                            }
                             return;
                         }
                         
                         const role = serverRoles.find(r => r.id === roleId);
                         if (!role) {
-                            showNotification('Role not found', 'error');
+                            if (window.showNotification) {
+                                window.showNotification('Role not found', 'error');
+                            }
                             return;
                         }
                         
@@ -1765,7 +1798,9 @@ class AutoRolePlugin {
                         if (descriptionInput) descriptionInput.value = '';
                         
                         displayReactionRoleRoles();
-                        showNotification('Role added to message', 'success');
+                        if (window.showNotification) {
+                            window.showNotification('Role added to message', 'success');
+                        }
                     }
 
                     function displayReactionRoleRoles() {
@@ -1816,12 +1851,16 @@ class AutoRolePlugin {
                         const removeOnUnreact = removeOnUnreactInput ? removeOnUnreactInput.checked : true;
                         
                         if (!channelId) {
-                            showNotification('Please select a channel', 'error');
+                            if (window.showNotification) {
+                                window.showNotification('Please select a channel', 'error');
+                            }
                             return;
                         }
                         
                         if (reactionRoleRoles.length === 0) {
-                            showNotification('Please add at least one role', 'error');
+                            if (window.showNotification) {
+                                window.showNotification('Please add at least one role', 'error');
+                            }
                             return;
                         }
                         
@@ -1850,7 +1889,9 @@ class AutoRolePlugin {
                             const result = await response.json();
                             
                             if (response.ok) {
-                                showNotification('Reaction role message created successfully!', 'success');
+                                if (window.showNotification) {
+                                    window.showNotification('Reaction role message created successfully!', 'success');
+                                }
                                 closeReactionRoleModal();
                                 await loadReactionRoles();
                             } else {
@@ -1858,7 +1899,9 @@ class AutoRolePlugin {
                             }
                         } catch (error) {
                             console.error('Error creating reaction role message:', error);
-                            showNotification(error.message, 'error');
+                            if (window.showNotification) {
+                                window.showNotification(error.message, 'error');
+                            }
                         } finally {
                             const createBtn = document.getElementById('create-rr-message');
                             if (createBtn) {
@@ -1883,13 +1926,17 @@ class AutoRolePlugin {
                             const result = await response.json();
                             
                             if (response.ok) {
-                                showNotification(result.message, 'success');
+                                if (window.showNotification) {
+                                    window.showNotification(result.message, 'success');
+                                }
                             } else {
                                 throw new Error(result.error || 'Failed to sync level roles');
                             }
                         } catch (error) {
                             console.error('Error syncing level roles:', error);
-                            showNotification(error.message, 'error');
+                            if (window.showNotification) {
+                                window.showNotification(error.message, 'error');
+                            }
                         } finally {
                             const syncBtn = document.getElementById('sync-level-roles-btn');
                             if (syncBtn) {
@@ -1901,7 +1948,9 @@ class AutoRolePlugin {
 
                     async function saveAutoRoleSettings() {
                         if (!currentGuildId) {
-                            showNotification('Please select a server', 'error');
+                            if (window.showNotification) {
+                                window.showNotification('Please select a server', 'error');
+                            }
                             return;
                         }
                         
@@ -1970,11 +2019,15 @@ class AutoRolePlugin {
                                 throw new Error('Failed to save level role settings');
                             }
                             
-                            showNotification('Auto-role settings saved successfully!', 'success');
+                            if (window.showNotification) {
+                                window.showNotification('Auto-role settings saved successfully!', 'success');
+                            }
                             
                         } catch (error) {
                             console.error('Error saving auto-role settings:', error);
-                            showNotification(error.message, 'error');
+                            if (window.showNotification) {
+                                window.showNotification(error.message, 'error');
+                            }
                         } finally {
                             const saveBtn = document.getElementById('save-autorole-settings');
                             const btnText = saveBtn ? saveBtn.querySelector('.btn-text') : null;
@@ -1995,4 +2048,3 @@ class AutoRolePlugin {
 }
 
 module.exports = AutoRolePlugin;
-                    
