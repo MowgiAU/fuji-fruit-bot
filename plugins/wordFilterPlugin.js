@@ -5,7 +5,7 @@ class WordFilterPlugin {
     constructor(app, client, ensureAuthenticated, hasAdminPermissions) {
         this.name = 'Word Filter';
         this.description = 'Automatically detect and filter inappropriate words from messages';
-        this.version = '1.0.0';
+        this.version = '1.1.0';
         this.enabled = true;
         
         this.app = app;
@@ -58,7 +58,9 @@ class WordFilterPlugin {
                 const settings = this.filterSettings[serverId] || {
                     enabled: false,
                     logChannelId: null,
-                    blockedWords: []
+                    blockedWords: [],
+                    repostCensored: true,  // NEW: Option to repost censored messages
+                    dmUser: true           // NEW: Option to DM users
                 };
                 
                 res.json(settings);
@@ -72,7 +74,7 @@ class WordFilterPlugin {
         this.app.post('/api/plugins/wordfilter/settings/:serverId', this.ensureAuthenticated, async (req, res) => {
             try {
                 const { serverId } = req.params;
-                const { enabled, logChannelId, blockedWords } = req.body;
+                const { enabled, logChannelId, blockedWords, repostCensored, dmUser } = req.body;
                 
                 const hasAdmin = await this.hasAdminPermissions(req.user.id, serverId);
                 if (!hasAdmin) {
@@ -82,7 +84,9 @@ class WordFilterPlugin {
                 this.filterSettings[serverId] = {
                     enabled: enabled || false,
                     logChannelId: logChannelId || null,
-                    blockedWords: blockedWords || []
+                    blockedWords: blockedWords || [],
+                    repostCensored: repostCensored !== false, // Default to true
+                    dmUser: dmUser !== false                   // Default to true
                 };
                 
                 this.saveFilterSettings();
@@ -114,7 +118,9 @@ class WordFilterPlugin {
                     this.filterSettings[serverId] = {
                         enabled: false,
                         logChannelId: null,
-                        blockedWords: []
+                        blockedWords: [],
+                        repostCensored: true,
+                        dmUser: true
                     };
                 }
                 
@@ -174,34 +180,40 @@ class WordFilterPlugin {
             if (detectedWords.length === 0) return;
             
             try {
+                // Store original message data before deletion
+                const originalData = {
+                    content: message.content,
+                    author: {
+                        username: message.author.username,
+                        displayName: message.author.displayName || message.author.username,
+                        avatarURL: message.author.displayAvatarURL({ dynamic: true, size: 128 }),
+                        id: message.author.id
+                    },
+                    attachments: Array.from(message.attachments.values()),
+                    embeds: message.embeds,
+                    timestamp: message.createdAt,
+                    reference: message.reference // For reply context
+                };
+
                 // Delete the original message
                 await message.delete();
                 
-                // Create censored version with sanitized mentions
-                let censoredContent = this.sanitizeMentions(message.content);
-                detectedWords.forEach(word => {
-                    const regex = new RegExp(word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-                    censoredContent = censoredContent.replace(regex, '*'.repeat(word.length));
-                });
+                // Create censored content
+                let censoredContent = this.censorContent(originalData.content, detectedWords);
+                
+                // Repost the censored message if enabled
+                if (settings.repostCensored !== false) {
+                    await this.repostCensoredMessage(message.channel, originalData, censoredContent, detectedWords);
+                }
+                
+                // Send DM to user if enabled
+                if (settings.dmUser !== false) {
+                    await this.sendUserDM(message.author, detectedWords, message.channel, message.guild);
+                }
                 
                 // Log to channel if configured
                 if (settings.logChannelId) {
-                    const logChannel = this.client.channels.cache.get(settings.logChannelId);
-                    if (logChannel) {
-                        const embed = {
-                            color: 0xff0000,
-                            title: '🚫 Word Filter Alert',
-                            fields: [
-                                { name: 'User', value: `${message.author.tag} (${message.author.id})`, inline: true },
-                                { name: 'Channel', value: `${message.channel.name}`, inline: true },
-                                { name: 'Detected Words', value: detectedWords.join(', '), inline: false },
-                                { name: 'Original Message', value: censoredContent.substring(0, 1024), inline: false }
-                            ],
-                            timestamp: new Date().toISOString()
-                        };
-                        
-                        await logChannel.send({ embeds: [embed] });
-                    }
+                    await this.logFilteredMessage(settings.logChannelId, originalData, detectedWords, message.channel, message.guild);
                 }
                 
             } catch (error) {
@@ -210,7 +222,193 @@ class WordFilterPlugin {
         });
     }
 
+    async repostCensoredMessage(channel, originalData, censoredContent, detectedWords) {
+        try {
+            // Create or get webhook for this channel
+            const webhook = await this.getChannelWebhook(channel);
+            
+            if (!webhook) {
+                // Fallback: post as bot with embed showing original author
+                const embed = {
+                    color: 0xffa500,
+                    author: {
+                        name: `${originalData.author.displayName} (message filtered)`,
+                        icon_url: originalData.author.avatarURL
+                    },
+                    description: censoredContent || '*No text content*',
+                    footer: {
+                        text: `🚫 Filtered: ${detectedWords.join(', ')}`
+                    },
+                    timestamp: originalData.timestamp.toISOString()
+                };
+
+                const messageOptions = { embeds: [embed] };
+
+                // Handle attachments
+                if (originalData.attachments.length > 0) {
+                    const attachmentsList = originalData.attachments
+                        .map(att => `📎 ${att.name} (${this.formatFileSize(att.size)})`)
+                        .join('\n');
+                    
+                    embed.fields = [{
+                        name: 'Attachments',
+                        value: attachmentsList,
+                        inline: false
+                    }];
+                }
+
+                return await channel.send(messageOptions);
+            } else {
+                // Use webhook to post as original user
+                const webhookOptions = {
+                    username: originalData.author.displayName,
+                    avatarURL: originalData.author.avatarURL,
+                    content: censoredContent || undefined
+                };
+
+                // Handle attachments (note: webhooks can't repost original attachments)
+                if (originalData.attachments.length > 0) {
+                    const attachmentsList = originalData.attachments
+                        .map(att => `📎 ${att.name}`)
+                        .join(' ');
+                    
+                    webhookOptions.content = (webhookOptions.content || '') + `\n\n*[Original attachments: ${attachmentsList}]*`;
+                }
+
+                // Add filter notice
+                webhookOptions.content = (webhookOptions.content || '') + `\n\n*🥭*`;
+
+                return await webhook.send(webhookOptions);
+            }
+        } catch (error) {
+            console.error('Error reposting censored message:', error);
+        }
+    }
+
+    async getChannelWebhook(channel) {
+        try {
+            // Check if bot has permission to manage webhooks
+            if (!channel.guild.members.me.permissions.has('ManageWebhooks')) {
+                return null;
+            }
+
+            const webhooks = await channel.fetchWebhooks();
+            let webhook = webhooks.find(wh => wh.owner.id === this.client.user.id && wh.name === 'Fuji Word Filter');
+            
+            if (!webhook) {
+                webhook = await channel.createWebhook({
+                    name: 'Fuji Word Filter',
+                    reason: 'Created for word filter message reposting'
+                });
+            }
+            
+            return webhook;
+        } catch (error) {
+            console.error('Error creating/getting webhook:', error);
+            return null;
+        }
+    }
+
+    async sendUserDM(user, detectedWords, channel, guild) {
+        try {
+            const embed = {
+                color: 0xff6b6b,
+                title: '🚫 Message Filtered',
+                description: `Your message in **${guild.name}** was filtered for containing inappropriate content.`,
+                fields: [
+                    {
+                        name: 'Channel',
+                        value: `#${channel.name}`,
+                        inline: true
+                    },
+                    {
+                        name: 'Detected Words',
+                        value: detectedWords.map(word => `\`${word}\``).join(', '),
+                        inline: true
+                    }
+                ],
+                footer: {
+                    text: 'Your message has been reposted with the inappropriate words censored.'
+                },
+                timestamp: new Date().toISOString()
+            };
+
+            await user.send({ embeds: [embed] });
+        } catch (error) {
+            console.error('Error sending DM to user:', error);
+            // User might have DMs disabled, which is fine
+        }
+    }
+
+    async logFilteredMessage(logChannelId, originalData, detectedWords, channel, guild) {
+        try {
+            const logChannel = this.client.channels.cache.get(logChannelId);
+            if (!logChannel) return;
+
+            const embed = {
+                color: 0xff0000,
+                title: '🚫 Word Filter Alert',
+                fields: [
+                    { 
+                        name: 'User', 
+                        value: `${originalData.author.displayName} (${originalData.author.id})`, 
+                        inline: true 
+                    },
+                    { 
+                        name: 'Channel', 
+                        value: `#${channel.name}`, 
+                        inline: true 
+                    },
+                    { 
+                        name: 'Detected Words', 
+                        value: detectedWords.join(', '), 
+                        inline: false 
+                    },
+                    { 
+                        name: 'Original Message', 
+                        value: originalData.content.substring(0, 1024) || '*No text content*', 
+                        inline: false 
+                    }
+                ],
+                timestamp: new Date().toISOString()
+            };
+
+            // Add attachment info if any
+            if (originalData.attachments.length > 0) {
+                const attachmentInfo = originalData.attachments
+                    .map(att => `${att.name} (${this.formatFileSize(att.size)})`)
+                    .join('\n');
+                
+                embed.fields.push({
+                    name: 'Attachments',
+                    value: attachmentInfo,
+                    inline: false
+                });
+            }
+            
+            await logChannel.send({ embeds: [embed] });
+        } catch (error) {
+            console.error('Error logging filtered message:', error);
+        }
+    }
+
+    censorContent(content, detectedWords) {
+        if (!content) return content;
+        
+        let censoredContent = this.sanitizeMentions(content);
+        
+        detectedWords.forEach(word => {
+            // Use word boundaries to avoid over-censoring
+            const regex = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+            censoredContent = censoredContent.replace(regex, '❌');
+        });
+        
+        return censoredContent;
+    }
+
     sanitizeMentions(content) {
+        if (!content) return content;
+        
         // Replace @everyone and @here with sanitized versions
         return content
             .replace(/@everyone/g, '@​everyone') // Add zero-width space
@@ -219,6 +417,8 @@ class WordFilterPlugin {
     }
 
     detectBlockedWords(content, blockedWords) {
+        if (!content) return [];
+        
         const detected = [];
         const normalizedContent = content.toLowerCase();
         
@@ -233,6 +433,14 @@ class WordFilterPlugin {
         return detected;
     }
 
+    formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
     getFrontendComponent() {
         return {
             // Plugin identification
@@ -240,7 +448,7 @@ class WordFilterPlugin {
             name: 'Word Filter',
             description: 'Automatically detect and filter inappropriate words from messages',
             icon: '🚫',
-            version: '1.0.0',
+            version: '1.1.0',
             
             // NEW: Plugin defines its own targets (no more dashboard hardcoding!)
             containerId: 'wordFilterPluginContainer',  // Where to inject HTML
@@ -269,6 +477,26 @@ class WordFilterPlugin {
                                     <input type="checkbox" id="filterEnabled" style="margin-right: 8px;">
                                     Enable Word Filter
                                 </label>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" id="repostCensored" style="margin-right: 8px;" checked>
+                                    Repost Censored Messages
+                                </label>
+                                <small style="opacity: 0.7; display: block; margin-top: 4px;">
+                                    Repost the message with blocked words censored instead of just deleting
+                                </small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" id="dmUser" style="margin-right: 8px;" checked>
+                                    Send DM Notifications
+                                </label>
+                                <small style="opacity: 0.7; display: block; margin-top: 4px;">
+                                    Send a DM to users when their messages are filtered
+                                </small>
                             </div>
                             
                             <div class="form-group">
@@ -313,6 +541,8 @@ class WordFilterPlugin {
                     const logChannelSelect = document.getElementById('logChannelSelect');
                     const filterSettings = document.getElementById('filterSettings');
                     const filterEnabled = document.getElementById('filterEnabled');
+                    const repostCensored = document.getElementById('repostCensored');
+                    const dmUser = document.getElementById('dmUser');
                     const newWord = document.getElementById('newWord');
                     const addWordBtn = document.getElementById('addWordBtn');
                     const blockedWordsList = document.getElementById('blockedWordsList');
@@ -409,6 +639,8 @@ class WordFilterPlugin {
                             currentSettings = settings;
                             
                             if (filterEnabled) filterEnabled.checked = settings.enabled;
+                            if (repostCensored) repostCensored.checked = settings.repostCensored !== false;
+                            if (dmUser) dmUser.checked = settings.dmUser !== false;
                             if (settings.logChannelId && logChannelSelect) {
                                 logChannelSelect.value = settings.logChannelId;
                             }
@@ -523,6 +755,8 @@ class WordFilterPlugin {
                             
                             const settings = {
                                 enabled: filterEnabled ? filterEnabled.checked : false,
+                                repostCensored: repostCensored ? repostCensored.checked : true,
+                                dmUser: dmUser ? dmUser.checked : true,
                                 logChannelId: logChannelSelect ? logChannelSelect.value || null : null,
                                 blockedWords: currentSettings?.blockedWords || []
                             };
@@ -541,7 +775,7 @@ class WordFilterPlugin {
                                 if (window.showNotification) {
                                     window.showNotification('Filter settings saved successfully!', 'success');
                                 }
-                                currentSettings = settings;
+                                currentSettings = { ...currentSettings, ...settings };
                             } else {
                                 throw new Error(result.error || 'Failed to save settings');
                             }
