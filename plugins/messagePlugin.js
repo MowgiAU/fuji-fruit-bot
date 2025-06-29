@@ -58,7 +58,7 @@ class MessagePlugin {
                     name: emoji.name,
                     url: emoji.url,
                     animated: emoji.animated,
-                    usage: `<:${emoji.name}:${emoji.id}>`
+                    usage: `<${emoji.animated ? 'a' : ''}:${emoji.name}:${emoji.id}>`
                 }));
                 
                 // Get stickers
@@ -199,19 +199,16 @@ class MessagePlugin {
 
     getFrontendComponent() {
         return {
-            // Plugin identification
             id: 'message-plugin',
             name: 'Message Sender',
-            description: 'Send messages to your Discord channels with optional attachments, replies, emojis, and stickers',
+            description: 'Send messages to Discord channels with optional attachments, replies, emojis, and stickers',
             icon: '💬',
             version: '1.0.0',
+            containerId: 'messagePluginContainer',
+            pageId: 'message-sender',
+            navIcon: '💬',
             
-            // NEW: Plugin defines its own targets (no more dashboard hardcoding!)
-            containerId: 'messagePluginContainer',    // Where to inject HTML
-            pageId: 'message-sender',                 // Page ID for navigation
-            navIcon: '💬',                           // Icon for navigation
-            
-            // Existing HTML and script
+            // --- CORRECTED HTML STRUCTURE ---
             html: `
                 <div class="plugin-container">
                     <div class="plugin-header">
@@ -229,6 +226,7 @@ class MessagePlugin {
                         
                         <div class="form-group">
                             <label for="channelSelect">Channel</label>
+                            <input type="text" id="messageChannelSearch" class="form-control" placeholder="🔍 Search channels..." style="margin-bottom: 10px; display: none;">
                             <select id="channelSelect" required disabled>
                                 <option value="">Select a channel...</option>
                             </select>
@@ -277,6 +275,8 @@ class MessagePlugin {
                     </form>
                 </div>
             `,
+
+            // --- CORRECTED SCRIPT ---
             script: `
                 // Message Plugin Frontend Logic
                 (function() {
@@ -308,7 +308,6 @@ class MessagePlugin {
                     let serverEmojis = [];
                     let serverStickers = [];
                     
-                    // Initialize if elements exist
                     if (serverSelect) {
                         loadMessageServers();
                         serverSelect.addEventListener('change', function() {
@@ -422,8 +421,11 @@ class MessagePlugin {
                     }
                     
                     async function loadMessageChannels(serverId) {
+                        const searchInput = document.getElementById('messageChannelSearch');
                         try {
                             channelSelect.innerHTML = '<option value="">Loading...</option>';
+                            if (searchInput) searchInput.style.display = 'none';
+
                             const response = await fetch(\`/api/channels/\${serverId}\`);
                             const channels = await response.json();
                             
@@ -434,9 +436,14 @@ class MessagePlugin {
                                 option.textContent = \`# \${channel.name}\`;
                                 channelSelect.appendChild(option);
                             });
+
+                            if (searchInput) searchInput.style.display = 'block';
+                            window.setupChannelSearch('messageChannelSearch', 'channelSelect');
+
                         } catch (error) {
                             console.error('Error loading channels:', error);
                             channelSelect.innerHTML = '<option value="">Error loading channels</option>';
+                            if (searchInput) searchInput.style.display = 'none';
                         }
                     }
                     

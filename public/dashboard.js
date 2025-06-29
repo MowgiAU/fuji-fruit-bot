@@ -15,6 +15,42 @@ function showNotification(message, type = 'success') {
     }, 5000);
 }
 
+// NEW: Global reusable function to add search functionality to a dropdown
+window.setupChannelSearch = function(searchInputId, selectId) {
+    const searchInput = document.getElementById(searchInputId);
+    const channelSelect = document.getElementById(selectId);
+
+    if (!searchInput || !channelSelect) return;
+
+    // Store the original full list of options on the select element itself
+    // This is safer than a global variable and gets set when channels are first loaded.
+    if (!channelSelect.originalOptions) {
+        channelSelect.originalOptions = Array.from(channelSelect.options);
+    }
+
+    searchInput.addEventListener('input', (e) => {
+        const searchTerm = e.target.value.toLowerCase();
+        const selectedValue = channelSelect.value; // Preserve selection
+
+        // Use the stored original list for filtering
+        const originalOptions = channelSelect.originalOptions || [];
+        
+        // Clear current options
+        channelSelect.innerHTML = '';
+
+        // Filter and add matching options back
+        originalOptions.forEach(option => {
+            // Always include the placeholder/default option (which usually has no value)
+            if (option.value === "" || option.text.toLowerCase().includes(searchTerm)) {
+                channelSelect.add(option.cloneNode(true));
+            }
+        });
+
+        // Restore the previously selected value, if it still exists in the list
+        channelSelect.value = selectedValue;
+    });
+};
+
 function switchToPage(pageId) {
     console.log('Switching to page:', pageId);
     

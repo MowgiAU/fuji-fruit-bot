@@ -5,7 +5,7 @@ class ChannelRulesPlugin {
     constructor(app, client, ensureAuthenticated, hasAdminPermissions) {
         this.name = 'Channel Rules';
         this.description = 'Set up automated rules for channels with custom conditions and actions';
-        this.version = '1.1.0';
+        this.version = '1.2.0';
         this.enabled = true;
         
         this.app = app;
@@ -136,6 +136,37 @@ class ChannelRulesPlugin {
                 res.status(500).json({ error: 'Failed to delete channel rules' });
             }
         });
+
+        // Get roles for a server (NEW ENDPOINT)
+        this.app.get('/api/plugins/channelrules/roles/:serverId', this.ensureAuthenticated, async (req, res) => {
+            try {
+                const { serverId } = req.params;
+                
+                const hasAdmin = await this.hasAdminPermissions(req.user.id, serverId);
+                if (!hasAdmin) {
+                    return res.status(403).json({ error: 'No admin permissions' });
+                }
+                
+                const guild = this.client.guilds.cache.get(serverId);
+                if (!guild) {
+                    return res.status(404).json({ error: 'Server not found' });
+                }
+                
+                const roles = guild.roles.cache
+                    .filter(role => role.name !== '@everyone' && !role.managed)
+                    .map(role => ({
+                        id: role.id,
+                        name: role.name,
+                        color: role.color
+                    }))
+                    .sort((a, b) => a.name.localeCompare(b.name));
+                
+                res.json(roles);
+            } catch (error) {
+                console.error('Error getting roles:', error);
+                res.status(500).json({ error: 'Failed to get roles' });
+            }
+        });
     }
 
     setupMessageListener() {
@@ -150,8 +181,17 @@ class ChannelRulesPlugin {
             const channelRules = this.channelRules[serverId]?.[channelId];
             if (!channelRules || !channelRules.enabled || !channelRules.rules.length) return;
             
+            // Get member object for role checking
+            const member = message.member;
+            if (!member) return;
+            
             // Check each rule
             for (const rule of channelRules.rules) {
+                // NEW: Check role conditions first
+                if (!this.checkRoleConditions(member, rule)) {
+                    continue; // Skip this rule if role conditions don't match
+                }
+                
                 const violation = await this.checkRule(message, rule);
                 if (violation) {
                     await this.handleRuleViolation(message, rule, violation, channelRules.logChannelId);
@@ -159,6 +199,39 @@ class ChannelRulesPlugin {
                 }
             }
         });
+    }
+
+    // NEW: Check if user meets role conditions
+    checkRoleConditions(member, rule) {
+        // If no role conditions set, rule applies to everyone
+        if (!rule.roleConditions || 
+            (!rule.roleConditions.requiredRoles?.length && !rule.roleConditions.exemptRoles?.length)) {
+            return true;
+        }
+        
+        const userRoles = member.roles.cache.map(role => role.id);
+        
+        // Check exempt roles first (these users bypass the rule entirely)
+        if (rule.roleConditions.exemptRoles?.length > 0) {
+            const hasExemptRole = rule.roleConditions.exemptRoles.some(roleId => 
+                userRoles.includes(roleId)
+            );
+            if (hasExemptRole) {
+                return false; // User has exempt role, rule doesn't apply to them
+            }
+        }
+        
+        // Check required roles (user MUST have at least one of these for rule to apply)
+        if (rule.roleConditions.requiredRoles?.length > 0) {
+            const hasRequiredRole = rule.roleConditions.requiredRoles.some(roleId => 
+                userRoles.includes(roleId)
+            );
+            if (!hasRequiredRole) {
+                return false; // User doesn't have any required roles, rule doesn't apply
+            }
+        }
+        
+        return true; // All role conditions met, rule applies
     }
 
     async checkRule(message, rule) {
@@ -176,7 +249,7 @@ class ChannelRulesPlugin {
             case 'must_contain_file':
                 return this.checkMustContainFile(message, rule);
             
-            // Blocking rules - NEW
+            // Blocking rules
             case 'block_audio':
                 return this.checkBlockAudio(message, rule);
             
@@ -275,7 +348,7 @@ class ChannelRulesPlugin {
         return null;
     }
 
-    // NEW BLOCKING METHODS
+    // BLOCKING METHODS
     checkBlockAudio(message, rule) {
         const audioExtensions = ['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a', 'wma'];
         const hasAudio = message.attachments.some(attachment => {
@@ -552,13 +625,6 @@ class ChannelRulesPlugin {
                                 name: 'Action Taken',
                                 value: this.getActionDisplay(rule.action),
                                 inline: true
-                            },
-                            {
-                                name: 'Message Content',
-                                value: message.content.length > 1000 ? 
-                                    message.content.substring(0, 1000) + '...' : 
-                                    message.content || '*No text content*',
-                                inline: false
                             }
                         ],
                         timestamp: new Date().toISOString(),
@@ -566,6 +632,58 @@ class ChannelRulesPlugin {
                             text: `Message ID: ${message.id} • User ID: ${message.author.id}`
                         }
                     };
+                    
+                    // NEW: Add role condition info to log
+                    if (rule.roleConditions) {
+                        const roleInfo = [];
+                        if (rule.roleConditions.requiredRoles?.length > 0) {
+                            const roleNames = rule.roleConditions.requiredRoles.map(roleId => {
+                                const role = message.guild.roles.cache.get(roleId);
+                                return role ? role.name : 'Unknown Role';
+                            });
+                            roleInfo.push(`Required: ${roleNames.join(', ')}`);
+                        }
+                        if (rule.roleConditions.exemptRoles?.length > 0) {
+                            const roleNames = rule.roleConditions.exemptRoles.map(roleId => {
+                                const role = message.guild.roles.cache.get(roleId);
+                                return role ? role.name : 'Unknown Role';
+                            });
+                            roleInfo.push(`Exempt: ${roleNames.join(', ')}`);
+                        }
+                        
+                        if (roleInfo.length > 0) {
+                            logEmbed.fields.push({
+                                name: 'Role Conditions',
+                                value: roleInfo.join('\n'),
+                                inline: false
+                            });
+                        }
+                    }
+                    
+                    // Add user roles to log
+                    if (message.member) {
+                        const userRoles = message.member.roles.cache
+                            .filter(role => role.name !== '@everyone')
+                            .map(role => role.name)
+                            .slice(0, 10) // Limit to prevent embed overflow
+                            .join(', ');
+                        
+                        if (userRoles) {
+                            logEmbed.fields.push({
+                                name: 'User Roles',
+                                value: userRoles + (message.member.roles.cache.size > 11 ? '...' : ''),
+                                inline: false
+                            });
+                        }
+                    }
+                    
+                    logEmbed.fields.push({
+                        name: 'Message Content',
+                        value: message.content.length > 1000 ? 
+                            message.content.substring(0, 1000) + '...' : 
+                            message.content || '*No text content*',
+                        inline: false
+                    });
                     
                     // Add attachment info if any
                     if (message.attachments.size > 0) {
@@ -690,12 +808,12 @@ class ChannelRulesPlugin {
         name: 'Channel Rules',
         description: 'Set up automated rules for channels with custom conditions and actions',
         icon: '⚖️',
-        version: '1.1.0',
+        version: '1.2.0',
         
-        // NEW: Plugin defines its own targets (no more dashboard hardcoding!)
-        containerId: 'channelRulesPluginContainer',  // Where to inject HTML
-        pageId: 'channel-rules',                     // Page ID for navigation
-        navIcon: '⚖️',                              // Icon for navigation
+        // Plugin defines its own targets
+        containerId: 'channelRulesPluginContainer',
+        pageId: 'channel-rules',
+        navIcon: '⚖️',
         
         // Complete HTML and script
         html: `
@@ -807,6 +925,41 @@ class ChannelRulesPlugin {
                         </select>
                     </div>
                     
+                    <!-- NEW: Role Conditions Section -->
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="enableRoleConditions" style="margin-right: 8px;">
+                            Enable Role Conditions
+                        </label>
+                        <small style="opacity: 0.7; display: block; margin-top: 4px;">
+                            Only apply this rule to users with specific roles
+                        </small>
+                    </div>
+                    
+                    <div id="roleConditionsConfig" style="display: none;">
+                        <div class="form-group">
+                            <label for="requiredRolesSelect">Apply Rule Only To These Roles</label>
+                            <select id="requiredRolesSelect" class="form-control" multiple style="height: 100px;">
+                                <option value="">Loading roles...</option>
+                            </select>
+                            <div id="selectedRequiredRoles" style="margin-top: 8px;"></div>
+                            <small style="opacity: 0.7; display: block; margin-top: 4px;">
+                                Hold Ctrl/Cmd to select multiple roles. Rule only applies to users with these roles. Leave empty to apply to all users.
+                            </small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="exemptRolesSelect">Exempt Roles (Bypass This Rule)</label>
+                            <select id="exemptRolesSelect" class="form-control" multiple style="height: 100px;">
+                                <option value="">Loading roles...</option>
+                            </select>
+                            <div id="selectedExemptRoles" style="margin-top: 8px;"></div>
+                            <small style="opacity: 0.7; display: block; margin-top: 4px;">
+                                Hold Ctrl/Cmd to select multiple roles. Users with these roles will bypass this rule completely.
+                            </small>
+                        </div>
+                    </div>
+                    
                     <div class="form-group">
                         <label for="customMessage">Custom Message (Optional)</label>
                         <textarea id="customMessage" class="form-control" rows="3" placeholder="Custom message to send to user when rule is violated..."></textarea>
@@ -889,6 +1042,14 @@ class ChannelRulesPlugin {
                 const saveRule = document.getElementById('saveRule');
                 const cancelRule = document.getElementById('cancelRule');
                 
+                // NEW: Role condition elements
+                const enableRoleConditions = document.getElementById('enableRoleConditions');
+                const roleConditionsConfig = document.getElementById('roleConditionsConfig');
+                const requiredRolesSelect = document.getElementById('requiredRolesSelect');
+                const exemptRolesSelect = document.getElementById('exemptRolesSelect');
+                const selectedRequiredRoles = document.getElementById('selectedRequiredRoles');
+                const selectedExemptRoles = document.getElementById('selectedExemptRoles');
+                
                 // Dynamic config elements
                 const domainsConfig = document.getElementById('domainsConfig');
                 const textsConfig = document.getElementById('textsConfig');
@@ -922,6 +1083,9 @@ class ChannelRulesPlugin {
                 let tempTexts = [];
                 let tempExtensions = [];
                 let editingRuleIndex = -1;
+                let serverRoles = []; // NEW: Store server roles
+                let selectedRequiredRoleIds = []; // NEW: Track selected required roles
+                let selectedExemptRoleIds = []; // NEW: Track selected exempt roles
                 
                 if (rulesServerSelect) {
                     loadRulesServers();
@@ -931,6 +1095,7 @@ class ChannelRulesPlugin {
                         currentServerId = serverId;
                         if (serverId) {
                             loadRulesChannels(serverId);
+                            loadServerRoles(serverId); // NEW: Load roles when server changes
                             if (rulesChannelSelect) rulesChannelSelect.disabled = false;
                         } else {
                             if (rulesChannelSelect) {
@@ -938,6 +1103,7 @@ class ChannelRulesPlugin {
                                 rulesChannelSelect.innerHTML = '<option value="">Select a channel...</option>';
                             }
                             if (channelRulesSettings) channelRulesSettings.style.display = 'none';
+                            serverRoles = [];
                         }
                     });
                 }
@@ -990,6 +1156,33 @@ class ChannelRulesPlugin {
                 if (cancelRule) {
                     cancelRule.addEventListener('click', function() {
                         closeRuleModal();
+                    });
+                }
+                
+                // NEW: Role conditions toggle
+                if (enableRoleConditions) {
+                    enableRoleConditions.addEventListener('change', function() {
+                        if (roleConditionsConfig) {
+                            roleConditionsConfig.style.display = this.checked ? 'block' : 'none';
+                        }
+                        if (this.checked && serverRoles.length === 0 && currentServerId) {
+                            loadServerRoles(currentServerId);
+                        }
+                    });
+                }
+                
+                // NEW: Role selection handlers
+                if (requiredRolesSelect) {
+                    requiredRolesSelect.addEventListener('change', function() {
+                        selectedRequiredRoleIds = Array.from(this.selectedOptions).map(option => option.value);
+                        displaySelectedRoles(selectedRequiredRoles, selectedRequiredRoleIds, 'required');
+                    });
+                }
+                
+                if (exemptRolesSelect) {
+                    exemptRolesSelect.addEventListener('change', function() {
+                        selectedExemptRoleIds = Array.from(this.selectedOptions).map(option => option.value);
+                        displaySelectedRoles(selectedExemptRoles, selectedExemptRoleIds, 'exempt');
                     });
                 }
                 
@@ -1097,6 +1290,73 @@ class ChannelRulesPlugin {
                     }
                 }
                 
+                // NEW: Load server roles
+                async function loadServerRoles(serverId) {
+                    try {
+                        const response = await fetch(\`/api/plugins/channelrules/roles/\${serverId}\`);
+                        const roles = await response.json();
+                        
+                        serverRoles = roles;
+                        populateRoleSelects();
+                    } catch (error) {
+                        console.error('Error loading server roles:', error);
+                        if (window.showNotification) {
+                            window.showNotification('Error loading server roles', 'error');
+                        }
+                    }
+                }
+                
+                // NEW: Populate role select elements
+                function populateRoleSelects() {
+                    if (requiredRolesSelect) {
+                        requiredRolesSelect.innerHTML = '';
+                        serverRoles.forEach(role => {
+                            const option = document.createElement('option');
+                            option.value = role.id;
+                            option.textContent = role.name;
+                            option.style.color = role.color ? \`#\${role.color.toString(16).padStart(6, '0')}\` : '#ffffff';
+                            requiredRolesSelect.appendChild(option);
+                        });
+                    }
+                    
+                    if (exemptRolesSelect) {
+                        exemptRolesSelect.innerHTML = '';
+                        serverRoles.forEach(role => {
+                            const option = document.createElement('option');
+                            option.value = role.id;
+                            option.textContent = role.name;
+                            option.style.color = role.color ? \`#\${role.color.toString(16).padStart(6, '0')}\` : '#ffffff';
+                            exemptRolesSelect.appendChild(option);
+                        });
+                    }
+                }
+                
+                // NEW: Display selected roles as badges
+                function displaySelectedRoles(container, roleIds, type) {
+                    if (!container) return;
+                    
+                    container.innerHTML = '';
+                    
+                    roleIds.forEach(roleId => {
+                        const role = serverRoles.find(r => r.id === roleId);
+                        if (role) {
+                            const badge = document.createElement('span');
+                            badge.style.cssText = \`
+                                display: inline-block;
+                                background: rgba(255,255,255,0.1);
+                                color: \${role.color ? \`#\${role.color.toString(16).padStart(6, '0')}\` : '#ffffff'};
+                                padding: 4px 8px;
+                                margin: 2px;
+                                border-radius: 12px;
+                                font-size: 0.8rem;
+                                border: 1px solid \${role.color ? \`#\${role.color.toString(16).padStart(6, '0')}\` : 'rgba(255,255,255,0.3)'};
+                            \`;
+                            badge.textContent = role.name;
+                            container.appendChild(badge);
+                        }
+                    });
+                }
+                
                 async function loadChannelRules(serverId, channelId) {
                     try {
                         const response = await fetch(\`/api/plugins/channelrules/rules/\${serverId}/\${channelId}\`);
@@ -1131,11 +1391,35 @@ class ChannelRulesPlugin {
                         
                         const ruleInfo = getRuleDisplayInfo(rule);
                         
+                        // NEW: Add role condition display
+                        let roleConditionText = '';
+                        if (rule.roleConditions) {
+                            const conditions = [];
+                            if (rule.roleConditions.requiredRoles?.length > 0) {
+                                const roleNames = rule.roleConditions.requiredRoles.map(roleId => {
+                                    const role = serverRoles.find(r => r.id === roleId);
+                                    return role ? role.name : 'Unknown Role';
+                                });
+                                conditions.push(\`Applies to: \${roleNames.join(', ')}\`);
+                            }
+                            if (rule.roleConditions.exemptRoles?.length > 0) {
+                                const roleNames = rule.roleConditions.exemptRoles.map(roleId => {
+                                    const role = serverRoles.find(r => r.id === roleId);
+                                    return role ? role.name : 'Unknown Role';
+                                });
+                                conditions.push(\`Exempt: \${roleNames.join(', ')}\`);
+                            }
+                            if (conditions.length > 0) {
+                                roleConditionText = \`<div style="font-size: 0.8rem; opacity: 0.7; margin-top: 2px; color: #ffa500;">\${conditions.join(' | ')}</div>\`;
+                            }
+                        }
+                        
                         ruleElement.innerHTML = \`
                             <div>
                                 <div style="font-weight: 600; margin-bottom: 4px;">\${ruleInfo.title}</div>
                                 <div style="font-size: 0.9rem; opacity: 0.8;">\${ruleInfo.description}</div>
                                 <div style="font-size: 0.8rem; opacity: 0.6; margin-top: 2px;">Action: \${getActionDisplay(rule.action)}</div>
+                                \${roleConditionText}
                             </div>
                             <div style="display: flex; gap: 8px;">
                                 <button type="button" onclick="window.editChannelRule(\${index})" class="glass-btn-small">Edit</button>
@@ -1198,6 +1482,36 @@ class ChannelRulesPlugin {
                     if (ruleAction) ruleAction.value = rule.action;
                     if (customMessage) customMessage.value = rule.customMessage || '';
                     
+                    // NEW: Load role conditions
+                    if (rule.roleConditions) {
+                        if (enableRoleConditions) enableRoleConditions.checked = true;
+                        if (roleConditionsConfig) roleConditionsConfig.style.display = 'block';
+                        
+                        selectedRequiredRoleIds = rule.roleConditions.requiredRoles || [];
+                        selectedExemptRoleIds = rule.roleConditions.exemptRoles || [];
+                        
+                        // Set selected options in multi-selects
+                        if (requiredRolesSelect) {
+                            Array.from(requiredRolesSelect.options).forEach(option => {
+                                option.selected = selectedRequiredRoleIds.includes(option.value);
+                            });
+                        }
+                        
+                        if (exemptRolesSelect) {
+                            Array.from(exemptRolesSelect.options).forEach(option => {
+                                option.selected = selectedExemptRoleIds.includes(option.value);
+                            });
+                        }
+                        
+                        displaySelectedRoles(selectedRequiredRoles, selectedRequiredRoleIds, 'required');
+                        displaySelectedRoles(selectedExemptRoles, selectedExemptRoleIds, 'exempt');
+                    } else {
+                        if (enableRoleConditions) enableRoleConditions.checked = false;
+                        if (roleConditionsConfig) roleConditionsConfig.style.display = 'none';
+                        selectedRequiredRoleIds = [];
+                        selectedExemptRoleIds = [];
+                    }
+                    
                     updateRuleConfig(rule.type);
                     
                     // Populate specific rule data
@@ -1245,12 +1559,33 @@ class ChannelRulesPlugin {
                             if (ruleType) ruleType.value = '';
                             if (ruleAction) ruleAction.value = 'delete_and_dm';
                             if (customMessage) customMessage.value = '';
+                            if (enableRoleConditions) enableRoleConditions.checked = false;
+                            if (roleConditionsConfig) roleConditionsConfig.style.display = 'none';
+                            
                             tempDomains = [];
                             tempTexts = [];
                             tempExtensions = [];
+                            selectedRequiredRoleIds = [];
+                            selectedExemptRoleIds = [];
+                            
                             if (maxFileSize) maxFileSize.value = '';
                             if (fileSizeUnit) fileSizeUnit.value = 'MB';
                             updateRuleConfig('');
+                            
+                            // Clear role selections
+                            if (requiredRolesSelect) {
+                                Array.from(requiredRolesSelect.options).forEach(option => option.selected = false);
+                            }
+                            if (exemptRolesSelect) {
+                                Array.from(exemptRolesSelect.options).forEach(option => option.selected = false);
+                            }
+                            if (selectedRequiredRoles) selectedRequiredRoles.innerHTML = '';
+                            if (selectedExemptRoles) selectedExemptRoles.innerHTML = '';
+                        }
+                        
+                        // Load roles if not already loaded
+                        if (serverRoles.length === 0 && currentServerId) {
+                            loadServerRoles(currentServerId);
                         }
                     }
                 }
@@ -1413,6 +1748,24 @@ class ChannelRulesPlugin {
                         action: action,
                         customMessage: message || null
                     };
+                    
+                    // NEW: Add role conditions if enabled
+                    if (enableRoleConditions && enableRoleConditions.checked) {
+                        rule.roleConditions = {};
+                        
+                        if (selectedRequiredRoleIds.length > 0) {
+                            rule.roleConditions.requiredRoles = [...selectedRequiredRoleIds];
+                        }
+                        
+                        if (selectedExemptRoleIds.length > 0) {
+                            rule.roleConditions.exemptRoles = [...selectedExemptRoleIds];
+                        }
+                        
+                        // Only add roleConditions if at least one condition is set
+                        if (!rule.roleConditions.requiredRoles && !rule.roleConditions.exemptRoles) {
+                            delete rule.roleConditions;
+                        }
+                    }
                     
                     // Add type-specific data
                     switch (type) {

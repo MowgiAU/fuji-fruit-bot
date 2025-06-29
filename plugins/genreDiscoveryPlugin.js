@@ -6,7 +6,7 @@ class GenreDiscoveryPlugin {
     constructor(app, client, ensureAuthenticated, hasAdminPermissions) {
         this.name = 'Genre Discovery';
         this.description = 'Helps music producers share and discover each other\'s genres and setups.';
-        this.version = '2.0.0';
+        this.version = '2.1.0';
         this.enabled = true;
 
         this.app = app;
@@ -16,9 +16,10 @@ class GenreDiscoveryPlugin {
 
         this.dataFile = path.join(__dirname, '../data/genreDiscoveryData.json');
         this.settingsFile = path.join(__dirname, '../data/genreDiscoverySettings.json');
+        this.categoriesFile = path.join(__dirname, '../data/genreDiscoveryCategories.json');
 
-        // Predefined lists - organized into chunks for Discord select menus (max 25 options)
-        this.genreChunks = [
+        // Default predefined lists
+        this.defaultGenreChunks = [
             {
                 name: 'Electronic & Dance',
                 genres: ['House', 'Techno', 'Trance', 'Dubstep', 'Future Bass', 'Progressive House', 'Deep House', 'Tech House', 'Minimal Techno', 'Big Room', 'Electro House', 'French House', 'Tropical House', 'UK Garage', 'Future Garage', 'Garage', 'Speed Garage', 'Bassline', 'Breakbeat', 'Hardcore', 'Hardstyle', 'Psytrance', 'Goa Trance', 'Acid Techno', 'Detroit Techno']
@@ -29,7 +30,7 @@ class GenreDiscoveryPlugin {
             },
             {
                 name: 'Ambient & Chill',
-                genres: ['Ambient', 'Lo-Fi', 'Chillwave', 'Downtempo', 'Chillhop', 'Lounge', 'Trip Hop', 'Chill Trap', 'Future Garage', 'Liquid DnB', 'Jazzhop', 'Study Beats', 'Meditation', 'Nature Sounds', 'Dark Ambient', 'Drone', 'Post-Rock', 'Cinematic', 'Neoclassical', 'Piano', 'Instrumental', 'New Age', 'Ethereal', 'Soundscape', 'Field Recording']
+                genres: ['Ambient', 'Lo-Fi', 'Chillwave', 'Downtempo', 'Chillhop', 'Lounge', 'Trip Hop', 'Chillout', 'Future Garage', 'Liquid DnB', 'Jazzhop', 'Study Beats', 'Meditation', 'Nature Sounds', 'Dark Ambient', 'Drone', 'Post-Rock', 'Cinematic', 'Neoclassical', 'Piano', 'Instrumental', 'New Age', 'Ethereal', 'Soundscape', 'Field Recording']
             },
             {
                 name: 'Retro & Synthwave',
@@ -45,7 +46,7 @@ class GenreDiscoveryPlugin {
             }
         ];
 
-        this.dawChunks = [
+        this.defaultDawChunks = [
             {
                 name: 'Professional DAWs',
                 daws: ['Ableton Live', 'FL Studio', 'Logic Pro', 'Pro Tools', 'Cubase', 'Studio One', 'Reaper', 'Reason', 'Bitwig Studio', 'Digital Performer', 'Nuendo', 'Samplitude', 'Mixbus', 'Harrison Mixbus', 'Waveform', 'Tracktion T7', 'MuLab', 'n-Track Studio', 'MultitrackStudio', 'Podium', 'Zynewave Podium', 'Music Maker', 'Mixcraft', 'Acid Pro', 'BandLab']
@@ -60,11 +61,14 @@ class GenreDiscoveryPlugin {
             }
         ];
 
+        this.genreChunks = [];
+        this.dawChunks = [];
+
         this.initializeData();
         this.setupRoutes();
         this.setupSlashCommands();
         
-        console.log('Enhanced Genre Discovery plugin with Select Menus loaded successfully!');
+        console.log('Enhanced Genre Discovery plugin v2.1 with Management Features loaded successfully!');
     }
 
     async initializeData() {
@@ -75,6 +79,17 @@ class GenreDiscoveryPlugin {
             await fs.access(this.settingsFile).catch(() => 
                 fs.writeFile(this.settingsFile, JSON.stringify({}, null, 2))
             );
+            
+            try {
+                await fs.access(this.categoriesFile);
+                const categories = await this.loadCategories();
+                this.genreChunks = categories.genreChunks || this.defaultGenreChunks;
+                this.dawChunks = categories.dawChunks || this.defaultDawChunks;
+            } catch {
+                this.genreChunks = [...this.defaultGenreChunks];
+                this.dawChunks = [...this.defaultDawChunks];
+                await this.saveCategories();
+            }
         } catch (error) {
             console.error('Error initializing Genre Discovery data:', error);
         }
@@ -106,13 +121,35 @@ class GenreDiscoveryPlugin {
         await fs.writeFile(this.settingsFile, JSON.stringify(settings, null, 2));
     }
 
+    async loadCategories() {
+        try {
+            const categories = await fs.readFile(this.categoriesFile, 'utf8');
+            return JSON.parse(categories);
+        } catch (error) {
+            return { genreChunks: this.defaultGenreChunks, dawChunks: this.defaultDawChunks };
+        }
+    }
+
+    async saveCategories() {
+        const categories = {
+            genreChunks: this.genreChunks,
+            dawChunks: this.dawChunks
+        };
+        await fs.writeFile(this.categoriesFile, JSON.stringify(categories, null, 2));
+    }
+
+    getUserData(data, guildId, userId) {
+        if (!data[guildId]) data[guildId] = {};
+        if (!data[guildId][userId]) data[guildId][userId] = { genres: [], daws: [] };
+        return data[guildId][userId];
+    }
+
     setupRoutes() {
-        // Get predefined lists (flattened for dashboard)
+        // Get predefined lists
         this.app.get('/api/plugins/genrediscovery/lists', this.ensureAuthenticated, async (req, res) => {
             try {
                 const genres = this.genreChunks.flatMap(chunk => chunk.genres);
                 const daws = this.dawChunks.flatMap(chunk => chunk.daws);
-                
                 res.json({ genres, daws });
             } catch (error) {
                 console.error('Error getting predefined lists:', error);
@@ -120,11 +157,143 @@ class GenreDiscoveryPlugin {
             }
         });
 
+        // Get categories
+        this.app.get('/api/plugins/genrediscovery/categories', this.ensureAuthenticated, async (req, res) => {
+            try {
+                res.json({ genreChunks: this.genreChunks, dawChunks: this.dawChunks });
+            } catch (error) {
+                console.error('Error getting categories:', error);
+                res.status(500).json({ error: 'Internal server error' });
+            }
+        });
+
+        // Add new category
+        this.app.post('/api/plugins/genrediscovery/categories', this.ensureAuthenticated, async (req, res) => {
+            try {
+                const { guildId, type, name } = req.body;
+                
+                if (!await this.hasAdminPermissions(req.user.id, guildId)) {
+                    return res.status(403).json({ error: 'Admin permissions required' });
+                }
+                
+                if (type === 'genre') {
+                    if (this.genreChunks.some(chunk => chunk.name === name)) {
+                        return res.status(400).json({ error: 'Category already exists' });
+                    }
+                    this.genreChunks.push({ name, genres: [] });
+                } else if (type === 'daw') {
+                    if (this.dawChunks.some(chunk => chunk.name === name)) {
+                        return res.status(400).json({ error: 'Category already exists' });
+                    }
+                    this.dawChunks.push({ name, daws: [] });
+                } else {
+                    return res.status(400).json({ error: 'Invalid type' });
+                }
+
+                await this.saveCategories();
+                res.json({ success: true });
+            } catch (error) {
+                console.error('Error adding category:', error);
+                res.status(500).json({ error: 'Internal server error' });
+            }
+        });
+
+        // Delete category
+        this.app.delete('/api/plugins/genrediscovery/categories/:type/:name', this.ensureAuthenticated, async (req, res) => {
+            try {
+                const { guildId } = req.query;
+                const { type, name } = req.params;
+                
+                if (!await this.hasAdminPermissions(req.user.id, guildId)) {
+                    return res.status(403).json({ error: 'Admin permissions required' });
+                }
+                
+                if (type === 'genre') {
+                    this.genreChunks = this.genreChunks.filter(chunk => chunk.name !== name);
+                } else if (type === 'daw') {
+                    this.dawChunks = this.dawChunks.filter(chunk => chunk.name !== name);
+                } else {
+                    return res.status(400).json({ error: 'Invalid type' });
+                }
+
+                await this.saveCategories();
+                res.json({ success: true });
+            } catch (error) {
+                console.error('Error deleting category:', error);
+                res.status(500).json({ error: 'Internal server error' });
+            }
+        });
+
+        // Add item to category
+        this.app.post('/api/plugins/genrediscovery/categories/:type/:categoryName/items', this.ensureAuthenticated, async (req, res) => {
+            try {
+                const { guildId, item } = req.body;
+                const { type, categoryName } = req.params;
+                
+                if (!await this.hasAdminPermissions(req.user.id, guildId)) {
+                    return res.status(403).json({ error: 'Admin permissions required' });
+                }
+                
+                if (type === 'genre') {
+                    const chunk = this.genreChunks.find(c => c.name === categoryName);
+                    if (!chunk) return res.status(404).json({ error: 'Category not found' });
+                    if (!chunk.genres.includes(item)) {
+                        chunk.genres.push(item);
+                    }
+                } else if (type === 'daw') {
+                    const chunk = this.dawChunks.find(c => c.name === categoryName);
+                    if (!chunk) return res.status(404).json({ error: 'Category not found' });
+                    if (!chunk.daws.includes(item)) {
+                        chunk.daws.push(item);
+                    }
+                } else {
+                    return res.status(400).json({ error: 'Invalid type' });
+                }
+
+                await this.saveCategories();
+                res.json({ success: true });
+            } catch (error) {
+                console.error('Error adding item:', error);
+                res.status(500).json({ error: 'Internal server error' });
+            }
+        });
+
+        // Remove item from category
+        this.app.delete('/api/plugins/genrediscovery/categories/:type/:categoryName/items/:item', this.ensureAuthenticated, async (req, res) => {
+            try {
+                const { guildId } = req.query;
+                const { type, categoryName, item } = req.params;
+                
+                if (!await this.hasAdminPermissions(req.user.id, guildId)) {
+                    return res.status(403).json({ error: 'Admin permissions required' });
+                }
+                
+                if (type === 'genre') {
+                    const chunk = this.genreChunks.find(c => c.name === categoryName);
+                    if (!chunk) return res.status(404).json({ error: 'Category not found' });
+                    chunk.genres = chunk.genres.filter(g => g !== decodeURIComponent(item));
+                } else if (type === 'daw') {
+                    const chunk = this.dawChunks.find(c => c.name === categoryName);
+                    if (!chunk) return res.status(404).json({ error: 'Category not found' });
+                    chunk.daws = chunk.daws.filter(d => d !== decodeURIComponent(item));
+                } else {
+                    return res.status(400).json({ error: 'Invalid type' });
+                }
+
+                await this.saveCategories();
+                res.json({ success: true });
+            } catch (error) {
+                console.error('Error removing item:', error);
+                res.status(500).json({ error: 'Internal server error' });
+            }
+        });
+
         // Get user's current tags
         this.app.get('/api/plugins/genrediscovery/user/:guildId/:userId', this.ensureAuthenticated, async (req, res) => {
             try {
+                const { guildId, userId } = req.params;
                 const data = await this.loadData();
-                const userData = this.getUserData(data, req.params.guildId, req.params.userId);
+                const userData = this.getUserData(data, guildId, userId);
                 res.json(userData);
             } catch (error) {
                 console.error('Error getting user data:', error);
@@ -132,47 +301,31 @@ class GenreDiscoveryPlugin {
             }
         });
 
-        // Update user's tags
-        this.app.post('/api/plugins/genrediscovery/user/:guildId/:userId', this.ensureAuthenticated, async (req, res) => {
-            try {
-                const { genres, daws } = req.body;
-                const data = await this.loadData();
-                const userData = this.getUserData(data, req.params.guildId, req.params.userId);
-                
-                userData.genres = genres || [];
-                userData.daws = daws || [];
-                
-                await this.saveData(data);
-                res.json({ success: true });
-            } catch (error) {
-                console.error('Error updating user data:', error);
-                res.status(500).json({ error: 'Internal server error' });
-            }
-        });
-
-        // Get settings for a guild
+        // Get settings
         this.app.get('/api/plugins/genrediscovery/settings/:guildId', this.ensureAuthenticated, async (req, res) => {
             try {
-                if (!await this.hasAdminPermissions(req.user.id, req.params.guildId)) {
-                    return res.status(403).json({ error: 'Insufficient permissions' });
-                }
+                const { guildId } = req.params;
                 const settings = await this.loadSettings();
-                res.json(settings[req.params.guildId] || { logChannelId: null });
+                res.json(settings[guildId] || {});
             } catch (error) {
                 console.error('Error getting settings:', error);
                 res.status(500).json({ error: 'Internal server error' });
             }
         });
 
-        // Save settings for a guild
+        // Save settings
         this.app.post('/api/plugins/genrediscovery/settings/:guildId', this.ensureAuthenticated, async (req, res) => {
             try {
-                if (!await this.hasAdminPermissions(req.user.id, req.params.guildId)) {
-                    return res.status(403).json({ error: 'Insufficient permissions' });
+                const { guildId } = req.params;
+                
+                if (!await this.hasAdminPermissions(req.user.id, guildId)) {
+                    return res.status(403).json({ error: 'Admin permissions required' });
                 }
+
                 const settings = await this.loadSettings();
-                settings[req.params.guildId] = req.body;
+                settings[guildId] = req.body;
                 await this.saveSettings(settings);
+                
                 res.json({ success: true });
             } catch (error) {
                 console.error('Error saving settings:', error);
@@ -180,19 +333,16 @@ class GenreDiscoveryPlugin {
             }
         });
 
-        // Get stats for a guild
+        // Get stats
         this.app.get('/api/plugins/genrediscovery/stats/:guildId', this.ensureAuthenticated, async (req, res) => {
             try {
-                if (!await this.hasAdminPermissions(req.user.id, req.params.guildId)) {
-                    return res.status(403).json({ error: 'Insufficient permissions' });
-                }
-
+                const { guildId } = req.params;
                 const data = await this.loadData();
-                const guildData = data[req.params.guildId] || {};
-
+                const guildData = data[guildId] || {};
+                
                 const genreCounts = {};
                 const dawCounts = {};
-
+                
                 Object.values(guildData).forEach(userData => {
                     userData.genres?.forEach(genre => {
                         genreCounts[genre] = (genreCounts[genre] || 0) + 1;
@@ -201,11 +351,11 @@ class GenreDiscoveryPlugin {
                         dawCounts[daw] = (dawCounts[daw] || 0) + 1;
                     });
                 });
-
+                
                 const topGenres = Object.entries(genreCounts)
                     .sort(([,a], [,b]) => b - a)
                     .slice(0, 10);
-
+                    
                 const topDaws = Object.entries(dawCounts)
                     .sort(([,a], [,b]) => b - a)
                     .slice(0, 10);
@@ -216,12 +366,6 @@ class GenreDiscoveryPlugin {
                 res.status(500).json({ error: 'Internal server error' });
             }
         });
-    }
-
-    getUserData(data, guildId, userId) {
-        if (!data[guildId]) data[guildId] = {};
-        if (!data[guildId][userId]) data[guildId][userId] = { genres: [], daws: [] };
-        return data[guildId][userId];
     }
 
     createGenreSelectMenu(selectedGenres = []) {
@@ -294,100 +438,99 @@ class GenreDiscoveryPlugin {
             .addOptions(options);
     }
 
-	setupSlashCommands() {
-		this.client.once('ready', async () => {
-			try {
-				const commands = [
-					new SlashCommandBuilder()
-						.setName('genres')
-						.setDescription('🎶 Set your music genres using dropdown menus'),
-					
-					new SlashCommandBuilder()
-						.setName('daws')
-						.setDescription('💻 Set your DAWs/software using dropdown menus'),
-					
-					new SlashCommandBuilder()
-						.setName('remove')
-						.setDescription('🗑️ Remove genres or DAWs from your tags')
-						.addSubcommand(subcommand =>
-							subcommand
-								.setName('genre')
-								.setDescription('Remove a genre from your tags')
-								.addStringOption(option => option.setName('genre').setDescription('Genre to remove').setRequired(true)))
-						.addSubcommand(subcommand =>
-							subcommand
-								.setName('daw')
-								.setDescription('Remove a DAW from your tags')
-								.addStringOption(option => option.setName('daw').setDescription('DAW to remove').setRequired(true)))
-						.addSubcommand(subcommand =>
-							subcommand
-								.setName('all')
-								.setDescription('Remove all your tags')
-								.addStringOption(option => 
-									option.setName('confirm')
-									.setDescription('Type "confirm" to remove all tags')
-									.setRequired(true)
-									.addChoices(
-										{ name: 'Yes, remove all my tags', value: 'confirm' }
-									))),
-						
-					new SlashCommandBuilder()
-						.setName('mytags')
-						.setDescription('👤 View your current genres and DAWs'),
-						
-					new SlashCommandBuilder()
-						.setName('find')
-						.setDescription('🔍 Find users by their tags')
-						.addSubcommand(subcommand =>
-							subcommand
-								.setName('genre')
-								.setDescription('Find users by genre')
-								.addStringOption(option => option.setName('genre').setDescription('Genre to search for').setRequired(true)))
-						.addSubcommand(subcommand =>
-							subcommand
-								.setName('daw')
-								.setDescription('Find users by DAW')
-								.addStringOption(option => option.setName('daw').setDescription('DAW to search for').setRequired(true))),
-					
-					new SlashCommandBuilder()
-						.setName('tags')
-						.setDescription('👀 View someone\'s tags')
-						.addUserOption(option => option.setName('user').setDescription('User to view tags for')),
-				];
+    setupSlashCommands() {
+        this.client.once('ready', async () => {
+            try {
+                const commands = [
+                    new SlashCommandBuilder()
+                        .setName('genres')
+                        .setDescription('🎶 Set your music genres using dropdown menus'),
+                    
+                    new SlashCommandBuilder()
+                        .setName('daws')
+                        .setDescription('💻 Set your DAWs/software using dropdown menus'),
+                    
+                    new SlashCommandBuilder()
+                        .setName('remove')
+                        .setDescription('🗑️ Remove genres or DAWs from your tags')
+                        .addSubcommand(subcommand =>
+                            subcommand
+                                .setName('genre')
+                                .setDescription('Remove a genre from your tags')
+                                .addStringOption(option => option.setName('genre').setDescription('Genre to remove').setRequired(true)))
+                        .addSubcommand(subcommand =>
+                            subcommand
+                                .setName('daw')
+                                .setDescription('Remove a DAW from your tags')
+                                .addStringOption(option => option.setName('daw').setDescription('DAW to remove').setRequired(true)))
+                        .addSubcommand(subcommand =>
+                            subcommand
+                                .setName('all')
+                                .setDescription('Remove all your tags')
+                                .addStringOption(option => 
+                                    option.setName('confirm')
+                                    .setDescription('Type "confirm" to remove all tags')
+                                    .setRequired(true)
+                                    .addChoices(
+                                        { name: 'Yes, remove all my tags', value: 'confirm' }
+                                    ))),
+                            
+                    new SlashCommandBuilder()
+                        .setName('mytags')
+                        .setDescription('👤 View your current genres and DAWs'),
+                            
+                    new SlashCommandBuilder()
+                        .setName('find')
+                        .setDescription('🔍 Find users by their tags')
+                        .addSubcommand(subcommand =>
+                            subcommand
+                                .setName('genre')
+                                .setDescription('Find users by genre')
+                                .addStringOption(option => option.setName('genre').setDescription('Genre to search for').setRequired(true)))
+                        .addSubcommand(subcommand =>
+                            subcommand
+                                .setName('daw')
+                                .setDescription('Find users by DAW')
+                                .addStringOption(option => option.setName('daw').setDescription('DAW to search for').setRequired(true))),
+                    
+                    new SlashCommandBuilder()
+                        .setName('tags')
+                        .setDescription('👀 View someone\'s tags')
+                        .addUserOption(option => option.setName('user').setDescription('User to view tags for')),
+                ];
 
-				// Register commands for each guild
-				const guilds = this.client.guilds.cache;
-				for (const guild of guilds.values()) {
-					try {
-						for (const command of commands) {
-							await guild.commands.create(command.toJSON());
-						}
-						console.log(`✓ Registered Genre Discovery commands for guild: ${guild.name}`);
-					} catch (error) {
-						console.error(`Error registering commands for guild ${guild.name}:`, error);
-					}
-				}
-				
-				console.log('✓ Genre Discovery slash commands with select menus registered.');
-			} catch (error) {
-				console.error('Error registering Genre Discovery commands:', error);
-			}
-		});
+                const guilds = this.client.guilds.cache;
+                for (const guild of guilds.values()) {
+                    try {
+                        for (const command of commands) {
+                            await guild.commands.create(command.toJSON());
+                        }
+                        console.log(`✓ Registered Genre Discovery commands for guild: ${guild.name}`);
+                    } catch (error) {
+                        console.error(`Error registering commands for guild ${guild.name}:`, error);
+                    }
+                }
+                
+                console.log('✓ Genre Discovery slash commands registered.');
+            } catch (error) {
+                console.error('Error registering Genre Discovery commands:', error);
+            }
+        });
 
-		this.client.on('interactionCreate', async (interaction) => {
-			if (interaction.isChatInputCommand()) {
-				const { commandName } = interaction;
-				if (['genres', 'daws', 'mytags', 'remove', 'find', 'tags'].includes(commandName)) {
-					await this.handleGenreCommands(interaction);
-				}
-			} else if (interaction.isStringSelectMenu()) {
-				const { customId } = interaction;
-				if (['genre_category_select', 'daw_category_select', 'specific_genre_select', 'specific_daw_select'].includes(customId)) {
-					await this.handleSelectMenuInteraction(interaction);
-				}
-			}
-		});
-	}
+        this.client.on('interactionCreate', async (interaction) => {
+            if (interaction.isChatInputCommand()) {
+                const { commandName } = interaction;
+                if (['genres', 'daws', 'mytags', 'remove', 'find', 'tags'].includes(commandName)) {
+                    await this.handleGenreCommands(interaction);
+                }
+            } else if (interaction.isStringSelectMenu()) {
+                const { customId } = interaction;
+                if (['genre_category_select', 'daw_category_select', 'specific_genre_select', 'specific_daw_select'].includes(customId)) {
+                    await this.handleSelectMenuInteraction(interaction);
+                }
+            }
+        });
+    }
 
     async handleSelectMenuInteraction(interaction) {
         try {
@@ -441,11 +584,9 @@ class GenreDiscoveryPlugin {
                 const data = await this.loadData();
                 const userData = this.getUserData(data, guildId, user.id);
                 
-                // Extract genre names from values
                 const newGenres = values.map(value => value.replace('add_genre_', ''));
                 const addedGenres = [];
                 
-                // Add new genres to user's list (avoid duplicates)
                 newGenres.forEach(genre => {
                     if (!userData.genres.includes(genre)) {
                         userData.genres.push(genre);
@@ -468,11 +609,9 @@ class GenreDiscoveryPlugin {
                 const data = await this.loadData();
                 const userData = this.getUserData(data, guildId, user.id);
                 
-                // Extract DAW names from values
                 const newDAWs = values.map(value => value.replace('add_daw_', ''));
                 const addedDAWs = [];
                 
-                // Add new DAWs to user's list (avoid duplicates)
                 newDAWs.forEach(daw => {
                     if (!userData.daws.includes(daw)) {
                         userData.daws.push(daw);
@@ -534,31 +673,31 @@ class GenreDiscoveryPlugin {
                 });
 
             } else if (commandName === 'remove') {
-				const subCommand = options.getSubcommand();
+                const subCommand = options.getSubcommand();
     
-				if (subCommand === 'genre') {
-				const genreToRemove = options.getString('genre');
-				const index = userData.genres.findIndex(g => g.toLowerCase() === genreToRemove.toLowerCase());
-				
-				if (index === -1) {
-					await interaction.reply({ 
-						content: `❌ You don't have "${genreToRemove}" in your genres.\n\n**Your current genres:** ${userData.genres.join(', ') || 'None'}`, 
-						ephemeral: true 
-					});
-					return;
-				}
-        
-        const removedGenre = userData.genres.splice(index, 1)[0];
-        await this.saveData(data);
-        
-        await interaction.reply({ 
-            content: `✅ Removed "${removedGenre}" from your genres.\n\n**Remaining genres:** ${userData.genres.join(', ') || 'None'}` 
-        });
+                if (subCommand === 'genre') {
+                    const genreToRemove = options.getString('genre');
+                    const index = userData.genres.findIndex(g => g.toLowerCase() === genreToRemove.toLowerCase());
                     
+                    if (index === -1) {
+                        await interaction.reply({ 
+                            content: `❌ You don't have "${genreToRemove}" in your genres.\n\n**Your current genres:** ${userData.genres.join(', ') || 'None'}`, 
+                            ephemeral: true 
+                        });
+                        return;
+                    }
+            
+                    const removedGenre = userData.genres.splice(index, 1)[0];
+                    await this.saveData(data);
+                    
+                    await interaction.reply({ 
+                        content: `✅ Removed "${removedGenre}" from your genres.\n\n**Remaining genres:** ${userData.genres.join(', ') || 'None'}` 
+                    });
+                        
                 } else if (subCommand === 'daw') {
                     const dawToRemove = options.getString('daw');
                     const index = userData.daws.findIndex(d => d.toLowerCase() === dawToRemove.toLowerCase());
-                    
+                        
                     if (index === -1) {
                         await interaction.reply({ 
                             content: `❌ You don't have "${dawToRemove}" in your DAWs.\n\n**Your current DAWs:** ${userData.daws.join(', ') || 'None'}`, 
@@ -566,17 +705,17 @@ class GenreDiscoveryPlugin {
                         });
                         return;
                     }
-                    
+                        
                     const removedDAW = userData.daws.splice(index, 1)[0];
                     await this.saveData(data);
-                    
+                        
                     await interaction.reply({ 
                         content: `✅ Removed "${removedDAW}" from your DAWs.\n\n**Remaining DAWs:** ${userData.daws.join(', ') || 'None'}` 
                     });
-                    
+                        
                 } else if (subCommand === 'all') {
                     const confirmation = options.getString('confirm');
-                    
+                        
                     if (confirmation !== 'confirm') {
                         await interaction.reply({ 
                             content: '❌ You must select "Yes, remove all my tags" to confirm this action.', 
@@ -584,14 +723,14 @@ class GenreDiscoveryPlugin {
                         });
                         return;
                     }
-                    
+                        
                     const removedGenres = [...userData.genres];
                     const removedDAWs = [...userData.daws];
-                    
+                        
                     userData.genres = [];
                     userData.daws = [];
                     await this.saveData(data);
-                    
+                        
                     const embed = new EmbedBuilder()
                         .setColor(0xff6b6b)
                         .setTitle('🗑️ All Tags Removed')
@@ -613,47 +752,46 @@ class GenreDiscoveryPlugin {
                         { name: '🎶 Genres', value: userData.genres.length > 0 ? userData.genres.slice(0, 20).join(', ') : 'None set', inline: false },
                         { name: '💻 DAWs', value: userData.daws.length > 0 ? userData.daws.slice(0, 20).join(', ') : 'None set', inline: false }
                     )
-                    .setFooter({ text: 'Use /genres or /daws to update your tags!' });
+                    .setFooter({ text: 'Use /genres and /daws to update your tags!' });
 
                 if (userData.genres.length > 20) {
-                    embed.addFields({ name: '📝 Note', value: `You have ${userData.genres.length} genres total (showing first 20)`, inline: false });
-                }
-                if (userData.daws.length > 20) {
-                    embed.addFields({ name: '📝 Note', value: `You have ${userData.daws.length} DAWs total (showing first 20)`, inline: false });
+                    embed.setFooter({ text: `Showing first 20 of ${userData.genres.length} genres. Use /genres and /daws to update your tags!` });
                 }
 
                 await interaction.reply({ embeds: [embed] });
 
             } else if (commandName === 'tags') {
                 const targetUser = options.getUser('user') || user;
-                const targetData = data[guildId]?.[targetUser.id] || { genres: [], daws: [] };
+                const targetUserData = this.getUserData(data, guildId, targetUser.id);
 
                 const embed = new EmbedBuilder()
                     .setColor(0x7289DA)
                     .setAuthor({ name: `${targetUser.username}'s Music Tags`, iconURL: targetUser.displayAvatarURL() })
                     .addFields(
-                        { name: '🎶 Genres', value: targetData.genres.length > 0 ? targetData.genres.slice(0, 20).join(', ') : 'None set', inline: false },
-                        { name: '💻 DAWs', value: targetData.daws.length > 0 ? targetData.daws.slice(0, 20).join(', ') : 'None set', inline: false }
+                        { name: '🎶 Genres', value: targetUserData.genres.length > 0 ? targetUserData.genres.slice(0, 20).join(', ') : 'None set', inline: false },
+                        { name: '💻 DAWs', value: targetUserData.daws.length > 0 ? targetUserData.daws.slice(0, 20).join(', ') : 'None set', inline: false }
                     );
 
-                if (targetData.genres.length > 20) {
-                    embed.addFields({ name: '📝 Note', value: `${targetUser.username} has ${targetData.genres.length} genres total (showing first 20)`, inline: false });
-                }
-                if (targetData.daws.length > 20) {
-                    embed.addFields({ name: '📝 Note', value: `${targetUser.username} has ${targetData.daws.length} DAWs total (showing first 20)`, inline: false });
+                if (targetUserData.genres.length > 20) {
+                    embed.setFooter({ text: `Showing first 20 of ${targetUserData.genres.length} genres` });
                 }
 
                 await interaction.reply({ embeds: [embed] });
 
             } else if (commandName === 'find') {
                 const subCommand = options.getSubcommand();
-                const type = subCommand === 'genre' ? 'genres' : 'daws';
-                const searchTerm = options.getString(subCommand).toLowerCase();
-                const guildData = data[guildId] || {};
+                const searchTerm = options.getString(subCommand);
                 
-                let matches = [];
-                for (const userId in guildData) {
-                    if (guildData[userId][type]?.some(t => t.toLowerCase().includes(searchTerm))) {
+                const allUsers = Object.entries(data[guildId] || {});
+                const matches = [];
+                
+                for (const [userId, userData] of allUsers) {
+                    const searchArray = subCommand === 'genre' ? userData.genres : userData.daws;
+                    const hasMatch = searchArray?.some(item => 
+                        item.toLowerCase().includes(searchTerm.toLowerCase())
+                    );
+                    
+                    if (hasMatch) {
                         try {
                            const member = await interaction.guild.members.fetch(userId);
                            matches.push(member.toString());
@@ -662,12 +800,13 @@ class GenreDiscoveryPlugin {
                         }
                     }
                 }
-
+                
                 const embed = new EmbedBuilder()
                     .setColor(0x7289DA)
-                    .setTitle(`🔍 Producers with ${subCommand}: **${searchTerm}**`)
-                    .setDescription(matches.length > 0 ? matches.slice(0, 20).join('\n') : `No producers found with **${searchTerm}**.`);
-                
+                    .setTitle(`🔍 Search Results for "${searchTerm}"`)
+                    .setDescription(matches.length > 0 ? 
+                        matches.slice(0, 20).join('\n') : `No producers found with **${searchTerm}**.`);
+                    
                 if (matches.length > 20) {
                     embed.setFooter({ text: `Showing first 20 of ${matches.length} results` });
                 }
@@ -691,14 +830,13 @@ class GenreDiscoveryPlugin {
         }
     }
 
-    // Dashboard component - streamlined admin-only interface
     getFrontendComponent() {
         return {
             id: 'genre-discovery-plugin',
             name: 'Genre Discovery',
             description: 'Helps music producers share and discover each other\'s genres and setups',
             icon: '🎶',
-            version: '2.0.0',
+            version: '2.1.0',
             
             containerId: 'genreDiscoveryPluginContainer',
             pageId: 'genre-discovery',
@@ -706,13 +844,13 @@ class GenreDiscoveryPlugin {
             
             html: `<div class="plugin-container">
                 <div class="plugin-header">
-                    <h3><span class="plugin-icon">🎶</span> Genre Discovery v2.0</h3>
-                    <p>Set your music genres and DAWs using Discord select menus or the dashboard</p>
+                    <h3><span class="plugin-icon">🎶</span> Genre Discovery v2.1</h3>
+                    <p>Set your music genres and DAWs using Discord select menus or manage categories in the dashboard</p>
                 </div>
 
                 <div class="info-section" style="background: rgba(114, 137, 218, 0.1); border-radius: 10px; padding: 20px; margin-bottom: 20px;">
-                    <h3>🎯 New Discord Select Menus!</h3>
-                    <p>Use these <strong>new slash commands</strong> in Discord for easy tag selection:</p>
+                    <h3>🎯 Discord Select Menus!</h3>
+                    <p>Use these <strong>slash commands</strong> in Discord for easy tag selection:</p>
                     <div class="command-list">
                         <div class="command-item">
                             <code>/genres</code>
@@ -771,389 +909,438 @@ class GenreDiscoveryPlugin {
                             <option value="">None (no logging)</option>
                         </select>
                     </div>
-                    <button id="save-genre-settings" class="btn btn-primary">
+                    <button id="save-genre-settings" class="btn-primary">
                         <span class="btn-text">💾 Save Settings</span>
                         <span class="btn-loader" style="display: none;">⏳</span>
                     </button>
                 </div>
 
+                <div id="genre-management-section" class="settings-section" style="display: none;">
+                    <h3>🎶 Genre Category Management (Admin Only)</h3>
+                    
+                    <div class="form-group">
+                        <label for="new-genre-category">Add New Genre Category:</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="new-genre-category" class="form-control" placeholder="Category name...">
+                            <button id="add-genre-category" class="btn btn-success">➕ Add</button>
+                        </div>
+                    </div>
+
+                    <div id="genre-categories-list">
+                        <!-- Categories will be loaded here -->
+                    </div>
+                </div>
+
+                <div id="daw-management-section" class="settings-section" style="display: none;">
+                    <h3>💻 DAW Category Management (Admin Only)</h3>
+                    
+                    <div class="form-group">
+                        <label for="new-daw-category">Add New DAW Category:</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="new-daw-category" class="form-control" placeholder="Category name...">
+                            <button id="add-daw-category" class="btn btn-success">➕ Add</button>
+                        </div>
+                    </div>
+
+                    <div id="daw-categories-list">
+                        <!-- Categories will be loaded here -->
+                    </div>
+                </div>
+
                 <div id="genre-stats-section" class="settings-section" style="display: none;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                        <h3>Server Statistics</h3>
-                        <button id="refresh-genre-stats" class="btn btn-secondary">🔄 Refresh</button>
-                    </div>
+                    <h3>📊 Server Statistics</h3>
+                    <button id="refresh-genre-stats" class="btn btn-secondary">🔄 Refresh Stats</button>
                     
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-                        <div>
+                    <div class="stats-container" style="display: flex; gap: 20px; margin-top: 15px;">
+                        <div class="stats-column" style="flex: 1;">
                             <h4>🎶 Top Genres</h4>
-                            <div id="genre-stats-list" class="stats-list"></div>
+                            <div id="genre-stats-list" class="stats-list">
+                                <!-- Stats will be loaded here -->
+                            </div>
                         </div>
-                        <div>
+                        <div class="stats-column" style="flex: 1;">
                             <h4>💻 Top DAWs</h4>
-                            <div id="daw-stats-list" class="stats-list"></div>
+                            <div id="daw-stats-list" class="stats-list">
+                                <!-- Stats will be loaded here -->
+                            </div>
                         </div>
                     </div>
                 </div>
-
-                <div class="info-section">
-                    <h3>Genre Categories Available</h3>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 15px;">
-                        <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px;">
-                            <h4>🎵 Electronic & Dance</h4>
-                            <small>House, Techno, Trance, Dubstep, Progressive, Deep House, Tech House, and more...</small>
-                        </div>
-                        <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px;">
-                            <h4>🔊 Bass & Electronic</h4>
-                            <small>Drum & Bass, Trap, Future Bass, Riddim, Neurofunk, Jump Up, and more...</small>
-                        </div>
-                        <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px;">
-                            <h4>🌙 Ambient & Chill</h4>
-                            <small>Lo-Fi, Ambient, Chillwave, Downtempo, Chillhop, Trip Hop, and more...</small>
-                        </div>
-                        <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px;">
-                            <h4>🌆 Retro & Synthwave</h4>
-                            <small>Synthwave, Vaporwave, Retrowave, Nu-Disco, Outrun, Darksynth, and more...</small>
-                        </div>
-                        <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px;">
-                            <h4>🎤 Hip Hop & Urban</h4>
-                            <small>Hip Hop, Trap, Boom Bap, Grime, Drill, R&B, Reggae, Afrobeat, and more...</small>
-                        </div>
-                        <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px;">
-                            <h4>🎸 Rock & Alternative</h4>
-                            <small>Rock, Metal, Punk, Indie, Alternative, Progressive, Post-Rock, and more...</small>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="info-section">
-                    <h3>DAW Categories Available</h3>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 15px;">
-                        <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px;">
-                            <h4>💼 Professional DAWs</h4>
-                            <small>Ableton Live, FL Studio, Logic Pro, Pro Tools, Cubase, Studio One, and more...</small>
-                        </div>
-                        <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px;">
-                            <h4>🆓 Free & Budget DAWs</h4>
-                            <small>GarageBand, Audacity, Cakewalk, LMMS, Reaper Trial, Studio One Prime, and more...</small>
-                        </div>
-                        <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px;">
-                            <h4>📱 Mobile & Browser</h4>
-                            <small>FL Studio Mobile, BandLab, Caustic, AudioTool, Soundtrap, GarageBand iOS, and more...</small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <style>
-                .tag-item {
-                    display: inline-block;
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    color: white;
-                    padding: 5px 10px;
-                    margin: 3px;
-                    border-radius: 15px;
-                    font-size: 0.9em;
-                }
-                
-                .remove-tag {
-                    margin-left: 8px;
-                    cursor: pointer;
-                    color: rgba(255, 255, 255, 0.8);
-                    font-weight: bold;
-                }
-                
-                .remove-tag:hover {
-                    color: #ff6b6b;
-                }
-                
-                .command-item {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    padding: 8px 12px;
-                    background: rgba(255, 255, 255, 0.05);
-                    border-radius: 6px;
-                    margin-bottom: 8px;
-                }
-                
-                .command-item code {
-                    background: rgba(114, 137, 218, 0.2);
-                    padding: 4px 8px;
-                    border-radius: 4px;
-                    font-family: 'Courier New', monospace;
-                    color: #7289da;
-                }
-                
-                .stats-list {
-                    background: rgba(255, 255, 255, 0.05);
-                    border-radius: 8px;
-                    padding: 15px;
-                    border: 1px solid rgba(255, 255, 255, 0.1);
-                }
-                
-                .stats-item {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    padding: 8px 0;
-                    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-                }
-                
-                .stats-item:last-child {
-                    border-bottom: none;
-                }
-                
-                .stats-name {
-                    font-weight: 500;
-                }
-                
-                .stats-count {
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    color: white;
-                    padding: 2px 8px;
-                    border-radius: 12px;
-                    font-size: 0.9em;
-                }
-            </style>`,
+            </div>`,
             
-            script: `
-                (function() {
-                    console.log('🎶 Loading Genre Discovery plugin with Select Menus...');
-                    
-                    let selectedGenres = [];
-                    let selectedDaws = [];
-                    let currentGuildId = null;
-                    
-                    function init() {
-                        const serverSelect = document.getElementById('genre-server-select');
-                        const settingsSection = document.getElementById('genre-settings-section');
-                        const statsSection = document.getElementById('genre-stats-section');
-                        
-                        if (!serverSelect) {
-                            console.error('Genre server select not found');
-                            return;
+            script: `(function() {
+                console.log('🎶 Loading Genre Discovery plugin v2.1...');
+                
+                let currentGuildId = null;
+                
+                const genreServerSelect = document.getElementById('genre-server-select');
+                const genreStatsSection = document.getElementById('genre-stats-section');
+                const genreSettingsSection = document.getElementById('genre-settings-section');
+                const genreManagementSection = document.getElementById('genre-management-section');
+                const dawManagementSection = document.getElementById('daw-management-section');
+                const genreLogChannel = document.getElementById('genre-log-channel');
+                const saveGenreSettings = document.getElementById('save-genre-settings');
+                const refreshGenreStats = document.getElementById('refresh-genre-stats');
+                const genreStatsList = document.getElementById('genre-stats-list');
+                const dawStatsList = document.getElementById('daw-stats-list');
+
+                const addGenreCategoryBtn = document.getElementById('add-genre-category');
+                const newGenreCategoryInput = document.getElementById('new-genre-category');
+                const genreCategoriesList = document.getElementById('genre-categories-list');
+                const addDawCategoryBtn = document.getElementById('add-daw-category');
+                const newDawCategoryInput = document.getElementById('new-daw-category');
+                const dawCategoriesList = document.getElementById('daw-categories-list');
+                
+                if (genreServerSelect) {
+                    genreServerSelect.addEventListener('change', function() {
+                        currentGuildId = this.value;
+                        if (currentGuildId) {
+                            loadChannels();
+                            loadStats();
+                            loadSettings();
+                            loadCategories();
+                            genreStatsSection.style.display = 'block';
+                            genreSettingsSection.style.display = 'block';
+                            genreManagementSection.style.display = 'block';
+                            dawManagementSection.style.display = 'block';
+                        } else {
+                            genreStatsSection.style.display = 'none';
+                            genreSettingsSection.style.display = 'none';
+                            genreManagementSection.style.display = 'none';
+                            dawManagementSection.style.display = 'none';
                         }
+                    });
+                }
+
+                if (addGenreCategoryBtn) {
+                    addGenreCategoryBtn.addEventListener('click', async function() {
+                        const categoryName = newGenreCategoryInput.value.trim();
+                        if (!categoryName || !currentGuildId) return;
+                        await addCategory('genre', categoryName);
+                    });
+                }
+
+                if (addDawCategoryBtn) {
+                    addDawCategoryBtn.addEventListener('click', async function() {
+                        const categoryName = newDawCategoryInput.value.trim();
+                        if (!categoryName || !currentGuildId) return;
+                        await addCategory('daw', categoryName);
+                    });
+                }
+
+                if (newGenreCategoryInput) {
+                    newGenreCategoryInput.addEventListener('keypress', function(e) {
+                        if (e.key === 'Enter') addGenreCategoryBtn.click();
+                    });
+                }
+
+                if (newDawCategoryInput) {
+                    newDawCategoryInput.addEventListener('keypress', function(e) {
+                        if (e.key === 'Enter') addDawCategoryBtn.click();
+                    });
+                }
+                
+                if (saveGenreSettings) {
+                    saveGenreSettings.addEventListener('click', saveSettings);
+                }
+                
+                if (refreshGenreStats) {
+                    refreshGenreStats.addEventListener('click', loadStats);
+                }
+                
+                loadServers();
+                
+                async function loadServers() {
+                    try {
+                        const response = await fetch('/api/servers');
+                        const servers = await response.json();
                         
-                        // Load servers
-                        loadServers();
+                        if (genreServerSelect) {
+                            genreServerSelect.innerHTML = '<option value="">Select a server...</option>';
+                            servers.forEach(function(server) {
+                                const option = document.createElement('option');
+                                option.value = server.id;
+                                option.textContent = server.name;
+                                genreServerSelect.appendChild(option);
+                            });
+                        }
+                    } catch (error) {
+                        console.error('Error loading servers:', error);
+                    }
+                }
+                
+                async function loadChannels() {
+                    if (!currentGuildId) return;
+                    
+                    try {
+                        const response = await fetch('/api/channels/' + currentGuildId);
+                        const channels = await response.json();
                         
-                        // Server change handler
-                        serverSelect.addEventListener('change', function() {
-                            currentGuildId = serverSelect.value;
-                            if (currentGuildId) {
-                                if (settingsSection) settingsSection.style.display = 'block';
-                                if (statsSection) statsSection.style.display = 'block';
-                                loadSettings();
-                                loadStats();
-                            } else {
-                                if (settingsSection) settingsSection.style.display = 'none';
-                                if (statsSection) statsSection.style.display = 'none';
-                            }
+                        if (genreLogChannel) {
+                            const currentVal = genreLogChannel.value;
+                            genreLogChannel.innerHTML = '<option value="">None (no logging)</option>';
+                            channels.forEach(function(channel) {
+                                const option = document.createElement('option');
+                                option.value = channel.id;
+                                option.textContent = '#' + channel.name;
+                                genreLogChannel.appendChild(option);
+                            });
+                            genreLogChannel.value = currentVal;
+                        }
+                    } catch (error) {
+                        console.error('Error loading channels:', error);
+                    }
+                }
+                
+                async function loadSettings() {
+                    if (!currentGuildId) return;
+                    
+                    try {
+                        const response = await fetch('/api/plugins/genrediscovery/settings/' + currentGuildId);
+                        const settings = await response.json();
+                        
+                        if (genreLogChannel) {
+                            genreLogChannel.value = settings.logChannelId || '';
+                        }
+                    } catch (error) {
+                        console.error('Error loading settings:', error);
+                    }
+                }
+
+                async function loadCategories() {
+                    if (!currentGuildId) return;
+                    
+                    try {
+                        const response = await fetch('/api/plugins/genrediscovery/categories');
+                        const data = await response.json();
+                        
+                        renderCategories('genre', data.genreChunks, genreCategoriesList);
+                        renderCategories('daw', data.dawChunks, dawCategoriesList);
+                    } catch (error) {
+                        console.error('Error loading categories:', error);
+                    }
+                }
+
+                function renderCategories(type, categories, container) {
+                    if (!container) return;
+                    
+                    container.innerHTML = '';
+                    
+                    categories.forEach(function(category) {
+                        const categoryDiv = document.createElement('div');
+                        categoryDiv.className = 'category-container';
+                        categoryDiv.style.border = '1px solid rgba(255,255,255,0.1)';
+                        categoryDiv.style.borderRadius = '8px';
+                        categoryDiv.style.padding = '15px';
+                        categoryDiv.style.marginBottom = '15px';
+                        categoryDiv.style.backgroundColor = 'rgba(255,255,255,0.05)';
+                        
+                        const items = type === 'genre' ? category.genres : category.daws;
+                        const itemType = type === 'genre' ? 'genre' : 'DAW';
+                        const safeId = category.name.replace(/\\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+                        const escapedCategoryName = category.name.replace(/'/g, "\\\\'").replace(/"/g, '\\\\"');
+                        
+                        categoryDiv.innerHTML = \`
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <h4 style="margin: 0; color: #7289DA;">\${category.name} (\${items.length} \${itemType}s)</h4>
+                                <button class="btn btn-danger btn-sm" onclick="window.deleteCategory('\${type}', '\${escapedCategoryName}')">🗑️ Delete Category</button>
+                            </div>
+                            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                                <input type="text" id="new-\${type}-\${safeId}" class="form-control" placeholder="Add new \${itemType}...">
+                                <button class="btn btn-success btn-sm" onclick="window.addItem('\${type}', '\${escapedCategoryName}', 'new-\${type}-\${safeId}')">➕ Add</button>
+                            </div>
+                            <div class="items-list" style="display: flex; flex-wrap: wrap; gap: 5px;">
+                                \${items.map(function(item) {
+                                    const escapedItem = item.replace(/'/g, "\\\\'").replace(/"/g, '\\\\"');
+                                    return \`<span class="item-tag" style="background: rgba(114, 137, 218, 0.2); padding: 4px 8px; border-radius: 4px; font-size: 12px; display: inline-flex; align-items: center; gap: 5px;">
+                                        \${item}
+                                        <button onclick="window.removeItem('\${type}', '\${escapedCategoryName}', '\${escapedItem}')" style="background: none; border: none; color: #ff6b6b; cursor: pointer; font-size: 14px;">✕</button>
+                                    </span>\`;
+                                }).join('')}
+                            </div>
+                        \`;
+                        container.appendChild(categoryDiv);
+                    });
+                }
+
+                async function addCategory(type, name) {
+                    if (!currentGuildId) return;
+                    
+                    try {
+                        const response = await fetch('/api/plugins/genrediscovery/categories', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ type: type, name: name, guildId: currentGuildId })
                         });
                         
-                        // Settings and stats handlers
-                        setupSettingsHandlers();
-                    }
-                    
-                    function setupSettingsHandlers() {
-                        const saveSettingsBtn = document.getElementById('save-genre-settings');
-                        if (saveSettingsBtn) {
-                            saveSettingsBtn.addEventListener('click', saveSettings);
-                        }
+                        const result = await response.json();
                         
-                        const refreshStatsBtn = document.getElementById('refresh-genre-stats');
-                        if (refreshStatsBtn) {
-                            refreshStatsBtn.addEventListener('click', function() {
-                                if (currentGuildId) loadStats();
-                            });
-                        }
-                    }
-                    
-                    async function loadServers() {
-                        try {
-                            const response = await fetch('/api/servers');
-                            const servers = await response.json();
-                            const serverSelect = document.getElementById('genre-server-select');
-                            if (serverSelect) {
-                                serverSelect.innerHTML = '<option value="">Select a server...</option>';
-                                servers.forEach(server => {
-                                    const option = document.createElement('option');
-                                    option.value = server.id;
-                                    option.textContent = server.name;
-                                    serverSelect.appendChild(option);
-                                });
-                            }
-                        } catch (error) {
-                            console.error('Error loading servers:', error);
-                        }
-                    }
-                    
-                    async function loadLists() {
-                        // No longer needed since we removed the dashboard tag management
-                        return;
-                    }
-                    
-                    async function loadUserTags() {
-                        // No longer needed since we removed the dashboard tag management
-                        return;
-                    }
-                    
-                    async function loadSettings() {
-                        if (!currentGuildId) return;
-                        
-                        try {
-                            const response = await fetch('/api/plugins/genrediscovery/settings/' + currentGuildId);
-                            const settings = await response.json();
-                            
-                            const logChannel = document.getElementById('genre-log-channel');
-                            if (logChannel) {
-                                // Load channels first, then set value
-                                await loadChannels();
-                                logChannel.value = settings.logChannelId || '';
-                            }
-                        } catch (error) {
-                            console.error('Error loading settings:', error);
-                        }
-                    }
-                    
-                    async function loadChannels() {
-                        if (!currentGuildId) return;
-                        
-                        try {
-                            const response = await fetch('/api/channels/' + currentGuildId);
-                            const channels = await response.json();
-                            
-                            const logChannel = document.getElementById('genre-log-channel');
-                            if (logChannel) {
-                                logChannel.innerHTML = '<option value="">None (no logging)</option>';
-                                channels.forEach(channel => {
-                                    const option = document.createElement('option');
-                                    option.value = channel.id;
-                                    option.textContent = '#' + channel.name;
-                                    logChannel.appendChild(option);
-                                });
-                            }
-                        } catch (error) {
-                            console.error('Error loading channels:', error);
-                        }
-                    }
-                    
-                    async function loadStats() {
-                        if (!currentGuildId) return;
-                        
-                        try {
-                            const response = await fetch('/api/plugins/genrediscovery/stats/' + currentGuildId);
-                            const stats = await response.json();
-                            
-                            const genreStatsList = document.getElementById('genre-stats-list');
-                            const dawStatsList = document.getElementById('daw-stats-list');
-                            
-                            if (genreStatsList) {
-                                genreStatsList.innerHTML = '';
-                                if (stats.topGenres.length === 0) {
-                                    genreStatsList.innerHTML = '<div class="stats-item"><span>No genre data yet</span></div>';
-                                } else {
-                                    stats.topGenres.forEach(function(item) {
-                                        const genre = item[0];
-                                        const count = item[1];
-                                        const div = document.createElement('div');
-                                        div.className = 'stats-item';
-                                        div.innerHTML = '<span class="stats-name">' + genre + '</span><span class="stats-count">' + count + '</span>';
-                                        genreStatsList.appendChild(div);
-                                    });
-                                }
-                            }
-                            
-                            if (dawStatsList) {
-                                dawStatsList.innerHTML = '';
-                                if (stats.topDaws.length === 0) {
-                                    dawStatsList.innerHTML = '<div class="stats-item"><span>No DAW data yet</span></div>';
-                                } else {
-                                    stats.topDaws.forEach(function(item) {
-                                        const daw = item[0];
-                                        const count = item[1];
-                                        const div = document.createElement('div');
-                                        div.className = 'stats-item';
-                                        div.innerHTML = '<span class="stats-name">' + daw + '</span><span class="stats-count">' + count + '</span>';
-                                        dawStatsList.appendChild(div);
-                                    });
-                                }
-                            }
-                        } catch (error) {
-                            console.error('Error loading stats:', error);
-                        }
-                    }
-                    
-                    function updateSelections() {
-                        // No longer needed since we removed the dashboard tag management
-                        return;
-                    }
-                    
-                    function updateTags() {
-                        // No longer needed since we removed the dashboard tag management
-                        return;
-                    }
-                    
-                    window.removeTag = function(type, value) {
-                        // No longer needed since we removed the dashboard tag management
-                        return;
-                    };
-                    
-                    async function saveTags() {
-                        // No longer needed since we removed the dashboard tag management
-                        return;
-                    }
-                    
-                    async function saveSettings() {
-                        if (!currentGuildId) return;
-                        
-                        const saveBtn = document.getElementById('save-genre-settings');
-                        const btnText = saveBtn ? saveBtn.querySelector('.btn-text') : null;
-                        const btnLoader = saveBtn ? saveBtn.querySelector('.btn-loader') : null;
-                        const logChannel = document.getElementById('genre-log-channel');
-                        
-                        if (saveBtn) saveBtn.disabled = true;
-                        if (btnText) btnText.style.display = 'none';
-                        if (btnLoader) btnLoader.style.display = 'inline';
-                        
-                        try {
-                            const response = await fetch('/api/plugins/genrediscovery/settings/' + currentGuildId, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    logChannelId: logChannel ? logChannel.value || null : null
-                                })
-                            });
-                            
-                            if (response.ok) {
-                                if (window.showNotification) {
-                                    window.showNotification('✅ Settings saved!', 'success');
-                                }
+                        if (response.ok) {
+                            if (window.showNotification) window.showNotification('Category added successfully!', 'success');
+                            if (type === 'genre') {
+                                newGenreCategoryInput.value = '';
                             } else {
-                                throw new Error('Failed to save settings');
+                                newDawCategoryInput.value = '';
                             }
-                        } catch (error) {
-                            console.error('Error saving settings:', error);
-                            if (window.showNotification) {
-                                window.showNotification('❌ Failed to save settings', 'error');
-                            }
-                        } finally {
-                            if (saveBtn) saveBtn.disabled = false;
-                            if (btnText) btnText.style.display = 'inline';
-                            if (btnLoader) btnLoader.style.display = 'none';
+                            loadCategories();
+                        } else {
+                            if (window.showNotification) window.showNotification('Error: ' + result.error, 'error');
                         }
+                    } catch (error) {
+                        console.error('Error adding category:', error);
+                        if (window.showNotification) window.showNotification('Error adding category', 'error');
                     }
+                }
+
+                window.deleteCategory = async function(type, name) {
+                    if (!currentGuildId) return;
+                    if (!confirm('Are you sure you want to delete this category and all its items?')) return;
                     
-                    // Initialize when DOM is ready
-                    if (document.readyState === 'loading') {
-                        document.addEventListener('DOMContentLoaded', init);
-                    } else {
-                        setTimeout(init, 100);
+                    try {
+                        const response = await fetch('/api/plugins/genrediscovery/categories/' + type + '/' + encodeURIComponent(name) + '?guildId=' + currentGuildId, {
+                            method: 'DELETE'
+                        });
+                        
+                        if (response.ok) {
+                            if (window.showNotification) window.showNotification('Category deleted successfully!', 'success');
+                            loadCategories();
+                        } else {
+                            const result = await response.json();
+                            if (window.showNotification) window.showNotification('Error: ' + result.error, 'error');
+                        }
+                    } catch (error) {
+                        console.error('Error deleting category:', error);
+                        if (window.showNotification) window.showNotification('Error deleting category', 'error');
                     }
+                };
+
+                window.addItem = async function(type, categoryName, inputId) {
+                    const input = document.getElementById(inputId);
+                    const item = input.value.trim();
+                    if (!item || !currentGuildId) return;
                     
-                    console.log('✅ Genre Discovery plugin with Select Menus loaded!');
-                })();
-            `
+                    try {
+                        const response = await fetch('/api/plugins/genrediscovery/categories/' + type + '/' + encodeURIComponent(categoryName) + '/items', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ item: item, guildId: currentGuildId })
+                        });
+                        
+                        if (response.ok) {
+                            if (window.showNotification) window.showNotification('Item added successfully!', 'success');
+                            input.value = '';
+                            loadCategories();
+                        } else {
+                            const result = await response.json();
+                            if (window.showNotification) window.showNotification('Error: ' + result.error, 'error');
+                        }
+                    } catch (error) {
+                        console.error('Error adding item:', error);
+                        if (window.showNotification) window.showNotification('Error adding item', 'error');
+                    }
+                };
+
+                window.removeItem = async function(type, categoryName, item) {
+                    if (!currentGuildId) return;
+                    if (!confirm('Are you sure you want to remove "' + item + '"?')) return;
+                    
+                    try {
+                        const response = await fetch('/api/plugins/genrediscovery/categories/' + type + '/' + encodeURIComponent(categoryName) + '/items/' + encodeURIComponent(item) + '?guildId=' + currentGuildId, {
+                            method: 'DELETE'
+                        });
+                        
+                        if (response.ok) {
+                            if (window.showNotification) window.showNotification('Item removed successfully!', 'success');
+                            loadCategories();
+                        } else {
+                            const result = await response.json();
+                            if (window.showNotification) window.showNotification('Error: ' + result.error, 'error');
+                        }
+                    } catch (error) {
+                        console.error('Error removing item:', error);
+                        if (window.showNotification) window.showNotification('Error removing item', 'error');
+                    }
+                };
+
+                async function loadStats() {
+                    if (!currentGuildId) return;
+                    
+                    try {
+                        const response = await fetch('/api/plugins/genrediscovery/stats/' + currentGuildId);
+                        const stats = await response.json();
+                        
+                        if (genreStatsList) {
+                            genreStatsList.innerHTML = '';
+                            if (stats.topGenres.length === 0) {
+                                genreStatsList.innerHTML = '<div class="stats-item"><span>No genre data yet</span></div>';
+                            } else {
+                                stats.topGenres.forEach(function(item) {
+                                    const div = document.createElement('div');
+                                    div.className = 'stats-item';
+                                    div.innerHTML = \`<span class="stats-name">\${item[0]}</span><span class="stats-count">\${item[1]}</span>\`;
+                                    genreStatsList.appendChild(div);
+                                });
+                            }
+                        }
+                        
+                        if (dawStatsList) {
+                            dawStatsList.innerHTML = '';
+                            if (stats.topDaws.length === 0) {
+                                dawStatsList.innerHTML = '<div class="stats-item"><span>No DAW data yet</span></div>';
+                            } else {
+                                stats.topDaws.forEach(function(item) {
+                                    const div = document.createElement('div');
+                                    div.className = 'stats-item';
+                                    div.innerHTML = \`<span class="stats-name">\${item[0]}</span><span class="stats-count">\${item[1]}</span>\`;
+                                    dawStatsList.appendChild(div);
+                                });
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error loading stats:', error);
+                    }
+                }
+                
+                async function saveSettings() {
+                    if (!currentGuildId) return;
+                    
+                    const saveBtn = document.getElementById('save-genre-settings');
+                    const btnText = saveBtn ? saveBtn.querySelector('.btn-text') : null;
+                    const btnLoader = saveBtn ? saveBtn.querySelector('.btn-loader') : null;
+                    
+                    if (saveBtn) saveBtn.disabled = true;
+                    if (btnText) btnText.style.display = 'none';
+                    if (btnLoader) btnLoader.style.display = 'inline';
+                    
+                    try {
+                        const settings = {
+                            logChannelId: genreLogChannel ? genreLogChannel.value || null : null
+                        };
+                        
+                        const response = await fetch('/api/plugins/genrediscovery/settings/' + currentGuildId, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(settings)
+                        });
+                        
+                        if (response.ok) {
+                            if (window.showNotification) window.showNotification('Settings saved successfully!', 'success');
+                        } else {
+                            const result = await response.json();
+                            if (window.showNotification) window.showNotification('Error: ' + (result.error || 'Failed to save'), 'error');
+                        }
+                    } catch (error) {
+                        console.error('Error saving settings:', error);
+                        if (window.showNotification) window.showNotification('Error saving settings', 'error');
+                    } finally {
+                        if (saveBtn) saveBtn.disabled = false;
+                        if (btnText) btnText.style.display = 'inline';
+                        if (btnLoader) btnLoader.style.display = 'none';
+                    }
+                }
+                
+                console.log('✓ Genre Discovery plugin v2.1 loaded with management features');
+            })();`
         };
     }
 }
