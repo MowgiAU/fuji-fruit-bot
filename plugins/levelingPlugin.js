@@ -16,6 +16,12 @@ class LevelingPlugin {
         this.dataFile = path.join(__dirname, '../data/levelingData.json');
         this.settingsFile = path.join(__dirname, '../data/levelingSettings.json');
         
+        // Backup configuration
+        this.backupDir = path.join(__dirname, '../backups');
+        this.maxBackups = 50; // Keep last 50 backups
+        this.backupInterval = 30 * 60 * 1000; // 30 minutes
+        this.dailyBackupHour = 3; // 3 AM daily backup
+        
         // XP calculation constants
         this.XP_RATES = {
             MESSAGE: { min: 15, max: 25 },
@@ -32,7 +38,9 @@ class LevelingPlugin {
         this.voiceTracker = new Map(); // Track voice session start times
         
         this.initializeData();
+        this.initializeBackupSystem();
         this.setupRoutes();
+        this.setupBackupRoutes();
         this.setupDiscordListeners();
         this.setupSlashCommands();
         
@@ -67,22 +75,244 @@ class LevelingPlugin {
         }
     }
 
+    async initializeBackupSystem() {
+        try {
+            // Ensure backup directory exists
+            await fs.mkdir(this.backupDir, { recursive: true });
+            
+            // Start automatic backup intervals
+            this.startPeriodicBackups();
+            this.startDailyBackups();
+            
+            // Create initial backup on startup
+            await this.createBackup('startup');
+            
+            console.log('✓ Backup system initialized');
+        } catch (error) {
+            console.error('Error initializing backup system:', error);
+        }
+    }
+
+    async createBackup(type = 'manual', reason = '') {
+        try {
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const backupFilename = `levelingData_${type}_${timestamp}.json`;
+            const backupPath = path.join(this.backupDir, backupFilename);
+            
+            // Read current data
+            const currentData = await this.loadDataRaw();
+            
+            // Add backup metadata
+            const backupData = {
+                metadata: {
+                    timestamp: new Date().toISOString(),
+                    type: type,
+                    reason: reason,
+                    version: this.version,
+                    userCount: Object.keys(currentData.users || {}).length,
+                    guildCount: this.getGuildCount(currentData)
+                },
+                data: currentData
+            };
+            
+            // Write backup file
+            await fs.writeFile(backupPath, JSON.stringify(backupData, null, 2));
+            
+            // Cleanup old backups
+            await this.cleanupOldBackups();
+            
+            console.log(`✓ Backup created: ${backupFilename}`);
+            return backupPath;
+            
+        } catch (error) {
+            console.error('Error creating backup:', error);
+            throw error;
+        }
+    }
+
     async loadData() {
+        try {
+            const data = await fs.readFile(this.dataFile, 'utf8');
+            const parsedData = JSON.parse(data);
+            
+            // Validate data structure
+            if (!parsedData.users || typeof parsedData.users !== 'object') {
+                throw new Error('Invalid data structure: missing users object');
+            }
+            
+            return parsedData;
+        } catch (error) {
+            console.error('Error loading leveling data:', error);
+            
+            // Try to restore from most recent backup
+            const restoredData = await this.tryRestoreFromBackup();
+            if (restoredData) {
+                console.log('✓ Data restored from backup');
+                return restoredData;
+            }
+            
+            // Last resort: return empty structure
+            console.warn('⚠️ No backups available. Starting with empty data.');
+            return { users: {}, leaderboards: {} };
+        }
+    }
+
+    async loadDataRaw() {
         try {
             const data = await fs.readFile(this.dataFile, 'utf8');
             return JSON.parse(data);
         } catch (error) {
-            console.error('Error loading leveling data:', error);
             return { users: {}, leaderboards: {} };
         }
     }
 
     async saveData(data) {
         try {
-            await fs.writeFile(this.dataFile, JSON.stringify(data, null, 2));
+            // Validate data before saving
+            if (!data.users || typeof data.users !== 'object') {
+                throw new Error('Invalid data structure: missing users object');
+            }
+            
+            // Create pre-save backup
+            await this.createBackup('pre-save', 'Before data modification');
+            
+            // Write to temporary file first (atomic operation)
+            const tempFile = this.dataFile + '.tmp';
+            await fs.writeFile(tempFile, JSON.stringify(data, null, 2));
+            
+            // Verify the temp file can be parsed
+            const verification = JSON.parse(await fs.readFile(tempFile, 'utf8'));
+            if (!verification.users) {
+                throw new Error('Verification failed: corrupted temp file');
+            }
+            
+            // Rename temp file to actual file (atomic operation)
+            await fs.rename(tempFile, this.dataFile);
+            
         } catch (error) {
             console.error('Error saving leveling data:', error);
+            
+            // Clean up temp file if it exists
+            try {
+                await fs.unlink(this.dataFile + '.tmp');
+            } catch {}
+            
+            throw error;
         }
+    }
+
+    async tryRestoreFromBackup() {
+        try {
+            const backupFiles = await fs.readdir(this.backupDir);
+            const levelingBackups = backupFiles
+                .filter(file => file.startsWith('levelingData_') && file.endsWith('.json'))
+                .sort()
+                .reverse(); // Most recent first
+            
+            for (const backupFile of levelingBackups) {
+                try {
+                    const backupPath = path.join(this.backupDir, backupFile);
+                    const backupContent = await fs.readFile(backupPath, 'utf8');
+                    const backup = JSON.parse(backupContent);
+                    
+                    // Check if backup has proper structure
+                    const data = backup.data || backup; // Handle both new and old backup formats
+                    if (data.users && typeof data.users === 'object') {
+                        // Restore the main file
+                        await fs.writeFile(this.dataFile, JSON.stringify(data, null, 2));
+                        console.log(`✓ Restored from backup: ${backupFile}`);
+                        return data;
+                    }
+                } catch (error) {
+                    console.warn(`⚠️ Backup file corrupted: ${backupFile}`);
+                    continue;
+                }
+            }
+            
+            return null;
+        } catch (error) {
+            console.error('Error restoring from backup:', error);
+            return null;
+        }
+    }
+
+    startPeriodicBackups() {
+        // Create backup every 30 minutes
+        setInterval(async () => {
+            try {
+                await this.createBackup('periodic', 'Automatic periodic backup');
+            } catch (error) {
+                console.error('Error in periodic backup:', error);
+            }
+        }, this.backupInterval);
+    }
+
+    startDailyBackups() {
+        // Create daily backup at specified hour
+        setInterval(async () => {
+            const now = new Date();
+            if (now.getHours() === this.dailyBackupHour && now.getMinutes() < 5) {
+                try {
+                    await this.createBackup('daily', 'Daily scheduled backup');
+                } catch (error) {
+                    console.error('Error in daily backup:', error);
+                }
+            }
+        }, 5 * 60 * 1000); // Check every 5 minutes
+    }
+
+    async cleanupOldBackups() {
+        try {
+            const backupFiles = await fs.readdir(this.backupDir);
+            const levelingBackups = backupFiles
+                .filter(file => file.startsWith('levelingData_') && file.endsWith('.json'))
+                .map(file => ({
+                    name: file,
+                    path: path.join(this.backupDir, file),
+                    stat: null
+                }));
+            
+            // Get file stats for sorting by creation time
+            for (const backup of levelingBackups) {
+                try {
+                    backup.stat = await fs.stat(backup.path);
+                } catch (error) {
+                    console.warn(`Could not stat backup file: ${backup.name}`);
+                }
+            }
+            
+            // Sort by creation time (oldest first)
+            const validBackups = levelingBackups
+                .filter(backup => backup.stat)
+                .sort((a, b) => a.stat.birthtime - b.stat.birthtime);
+            
+            // Remove old backups if we exceed the limit
+            if (validBackups.length > this.maxBackups) {
+                const toDelete = validBackups.slice(0, validBackups.length - this.maxBackups);
+                
+                for (const backup of toDelete) {
+                    try {
+                        await fs.unlink(backup.path);
+                        console.log(`🗑️ Deleted old backup: ${backup.name}`);
+                    } catch (error) {
+                        console.warn(`Could not delete backup: ${backup.name}`);
+                    }
+                }
+            }
+            
+        } catch (error) {
+            console.error('Error cleaning up old backups:', error);
+        }
+    }
+
+    getGuildCount(data) {
+        const guilds = new Set();
+        for (const user of Object.values(data.users || {})) {
+            for (const guildId of Object.keys(user)) {
+                guilds.add(guildId);
+            }
+        }
+        return guilds.size;
     }
 
     async loadSettings() {
@@ -119,7 +349,8 @@ class LevelingPlugin {
         return nextLevelXP - currentXP;
     }
 
-    async addXP(userId, guildId, amount, source = 'manual') {
+    // ✅ FIXED: Added preserveLevel parameter to prevent level recalculation during restore
+    async addXP(userId, guildId, amount, source = 'manual', preserveLevel = false) {
         const data = await this.loadData();
         
         if (!data.users[userId]) {
@@ -141,7 +372,11 @@ class LevelingPlugin {
         const oldLevel = userGuildData.level;
         
         userGuildData.xp += amount;
-        userGuildData.level = this.calculateLevel(userGuildData.xp);
+        
+        // ✅ FIXED: Only recalculate level if not preserving existing level
+        if (!preserveLevel) {
+            userGuildData.level = this.calculateLevel(userGuildData.xp);
+        }
         
         // Track source-specific stats
         if (source === 'reaction_given') userGuildData.reactionsGiven++;
@@ -149,12 +384,63 @@ class LevelingPlugin {
         
         await this.saveData(data);
         
-        // Check for level up
-        if (userGuildData.level > oldLevel) {
+        // Check for level up (only if not preserving level)
+        if (!preserveLevel && userGuildData.level > oldLevel) {
             await this.handleLevelUp(userId, guildId, userGuildData.level, oldLevel);
         }
         
         return userGuildData;
+    }
+
+    // ✅ NEW: Function to validate and sync user data after restore
+    async validateAndSyncUserData() {
+        try {
+            const data = await this.loadData();
+            let changesMade = false;
+            
+            // Validate each user's data
+            for (const [userId, guilds] of Object.entries(data.users)) {
+                for (const [guildId, userData] of Object.entries(guilds)) {
+                    if (userData && typeof userData === 'object') {
+                        // Ensure all required fields exist
+                        const requiredFields = {
+                            xp: 0,
+                            level: 0,
+                            lastMessageTime: 0,
+                            voiceTime: 0,
+                            reactionsGiven: 0,
+                            reactionsReceived: 0
+                        };
+                        
+                        for (const [field, defaultValue] of Object.entries(requiredFields)) {
+                            if (typeof userData[field] !== 'number') {
+                                userData[field] = defaultValue;
+                                changesMade = true;
+                            }
+                        }
+                        
+                        // ✅ IMPORTANT: Do NOT recalculate levels - preserve backed up levels
+                        // Only validate that level is reasonable compared to XP
+                        const calculatedLevel = this.calculateLevel(userData.xp);
+                        if (userData.level < 0) {
+                            userData.level = Math.max(0, calculatedLevel);
+                            changesMade = true;
+                        }
+                        // Allow backed up levels to be higher than calculated (for custom/bonus levels)
+                    }
+                }
+            }
+            
+            if (changesMade) {
+                await this.saveData(data);
+                console.log('✓ User data validated and synchronized');
+            }
+            
+            return { success: true, changesMade };
+        } catch (error) {
+            console.error('Error validating user data:', error);
+            return { success: false, error: error.message };
+        }
     }
 
     async handleLevelUp(userId, guildId, newLevel, oldLevel) {
@@ -457,6 +743,135 @@ class LevelingPlugin {
         });
     }
 
+    setupBackupRoutes() {
+        // Create manual backup
+        this.app.post('/api/plugins/leveling/backup/create', this.ensureAuthenticated, async (req, res) => {
+            try {
+                const { reason } = req.body;
+                
+                const backupPath = await this.createBackup('manual', reason || 'Manual backup via dashboard');
+                
+                res.json({
+                    success: true,
+                    message: 'Backup created successfully',
+                    backupPath: path.basename(backupPath)
+                });
+            } catch (error) {
+                console.error('Error creating manual backup:', error);
+                res.status(500).json({ error: 'Failed to create backup' });
+            }
+        });
+
+        // List available backups
+        this.app.get('/api/plugins/leveling/backup/list', this.ensureAuthenticated, async (req, res) => {
+            try {
+                const backupFiles = await fs.readdir(this.backupDir);
+                const levelingBackups = [];
+                
+                for (const file of backupFiles) {
+                    if (file.startsWith('levelingData_') && file.endsWith('.json')) {
+                        try {
+                            const filePath = path.join(this.backupDir, file);
+                            const stat = await fs.stat(filePath);
+                            
+                            // Try to read metadata
+                            let metadata = null;
+                            try {
+                                const content = await fs.readFile(filePath, 'utf8');
+                                const backup = JSON.parse(content);
+                                metadata = backup.metadata;
+                            } catch {}
+                            
+                            levelingBackups.push({
+                                filename: file,
+                                size: stat.size,
+                                created: stat.birthtime,
+                                modified: stat.mtime,
+                                metadata: metadata
+                            });
+                        } catch (error) {
+                            console.warn(`Could not read backup file: ${file}`);
+                        }
+                    }
+                }
+                
+                // Sort by creation time (newest first)
+                levelingBackups.sort((a, b) => new Date(b.created) - new Date(a.created));
+                
+                res.json(levelingBackups);
+            } catch (error) {
+                console.error('Error listing backups:', error);
+                res.status(500).json({ error: 'Failed to list backups' });
+            }
+        });
+
+        // ✅ FIXED: Restore from backup with proper level preservation
+        this.app.post('/api/plugins/leveling/backup/restore', this.ensureAuthenticated, async (req, res) => {
+            try {
+                const { filename, guildId } = req.body;
+                
+                if (!await this.hasAdminPermissions(req.user.id, guildId)) {
+                    return res.status(403).json({ error: 'Insufficient permissions' });
+                }
+                
+                const backupPath = path.join(this.backupDir, filename);
+                
+                // Verify backup exists and is valid
+                const backupContent = await fs.readFile(backupPath, 'utf8');
+                const backup = JSON.parse(backupContent);
+                const data = backup.data || backup;
+                
+                if (!data.users || typeof data.users !== 'object') {
+                    throw new Error('Invalid backup data structure');
+                }
+                
+                // Create backup of current state before restoring
+                await this.createBackup('pre-restore', `Before restoring from ${filename}`);
+                
+                // ✅ IMPORTANT: Restore the data exactly as it was backed up
+                // Do NOT recalculate levels - preserve them exactly
+                await fs.writeFile(this.dataFile, JSON.stringify(data, null, 2));
+                
+                // ✅ NEW: Validate restored data without changing levels
+                const validationResult = await this.validateAndSyncUserData();
+                
+                res.json({
+                    success: true,
+                    message: `Successfully restored from backup: ${filename}`,
+                    userCount: Object.keys(data.users).length,
+                    validation: validationResult
+                });
+                
+            } catch (error) {
+                console.error('Error restoring backup:', error);
+                res.status(500).json({ error: 'Failed to restore backup: ' + error.message });
+            }
+        });
+
+        // ✅ NEW: Endpoint to manually sync data after restore if needed
+        this.app.post('/api/plugins/leveling/sync', this.ensureAuthenticated, async (req, res) => {
+            try {
+                const { guildId } = req.body;
+                
+                if (!await this.hasAdminPermissions(req.user.id, guildId)) {
+                    return res.status(403).json({ error: 'Insufficient permissions' });
+                }
+                
+                const result = await this.validateAndSyncUserData();
+                
+                res.json({
+                    success: true,
+                    message: 'Data validation completed',
+                    ...result
+                });
+                
+            } catch (error) {
+                console.error('Error syncing data:', error);
+                res.status(500).json({ error: 'Failed to sync data: ' + error.message });
+            }
+        });
+    }
+
     setupSlashCommands() {
         this.client.once('ready', async () => {
             try {
@@ -660,10 +1075,10 @@ class LevelingPlugin {
             icon: '📈',
             version: '1.0.0',
             
-            // NEW: Plugin defines its own targets (no more dashboard hardcoding!)
-            containerId: 'levelingPluginContainer',    // Where to inject HTML
-            pageId: 'leveling',                        // Page ID for navigation (matches dashboard.html)
-            navIcon: '📈',                            // Icon for navigation
+            // Plugin targets
+            containerId: 'levelingPluginContainer',
+            pageId: 'leveling',
+            navIcon: '📈',
             
             // Complete HTML and script
             html: `
@@ -773,6 +1188,50 @@ class LevelingPlugin {
                             </button>
                         </div>
                     </div>
+					
+					<div id="backupSection" style="display: none;">
+						<h3>💾 Backup Management</h3>
+						<div style="background: rgba(255,255,255,0.05); border-radius: 8px; padding: 15px; margin-bottom: 15px;">
+							<div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
+								<button type="button" id="createBackupBtn" style="padding: 8px 16px; background: rgba(76, 175, 80, 0.3); border: 1px solid rgba(76, 175, 80, 0.5); border-radius: 8px; color: white; cursor: pointer;">
+									📁 Create Backup Now
+								</button>
+								<button type="button" id="refreshBackupsBtn" style="padding: 8px 16px; background: rgba(33, 150, 243, 0.3); border: 1px solid rgba(33, 150, 243, 0.5); border-radius: 8px; color: white; cursor: pointer;">
+									🔄 Refresh List
+								</button>
+								<button type="button" id="syncDataBtn" style="padding: 8px 16px; background: rgba(255, 193, 7, 0.3); border: 1px solid rgba(255, 193, 7, 0.5); border-radius: 8px; color: white; cursor: pointer;">
+									⚙️ Validate Data
+								</button>
+							</div>
+							
+							<div style="margin-bottom: 10px;">
+								<label for="backupReason" style="display: block; margin-bottom: 5px; color: white;">Backup Reason (Optional):</label>
+								<input type="text" id="backupReason" placeholder="e.g., Before major changes..." style="width: 100%; padding: 8px; border: 1px solid rgba(255,255,255,0.3); border-radius: 6px; background: rgba(255,255,255,0.1); color: white;">
+							</div>
+						</div>
+
+						<div id="backupListContainer" style="background: rgba(255,255,255,0.05); border-radius: 8px; padding: 15px;">
+							<h4 style="color: white; margin-top: 0;">📋 Available Backups</h4>
+							<div id="backupLoading" style="text-align: center; opacity: 0.6; padding: 20px;">
+								Loading backups...
+							</div>
+							<div id="backupList" style="display: none;"></div>
+							<div id="backupEmpty" style="display: none; text-align: center; opacity: 0.6; padding: 20px;">
+								No backups available
+							</div>
+						</div>
+
+						<div style="background: rgba(255, 193, 7, 0.1); border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 8px; padding: 15px; margin-top: 15px;">
+							<h4 style="color: #ffc107; margin-top: 0;">⚙️ Automatic Backup Settings</h4>
+							<ul style="color: rgba(255,255,255,0.8); margin: 0; padding-left: 20px;">
+								<li>🕐 <strong>Periodic backups:</strong> Every 30 minutes</li>
+								<li>🌅 <strong>Daily backups:</strong> Every day at 3:00 AM</li>
+								<li>💾 <strong>Backup retention:</strong> Last 50 backups kept</li>
+								<li>🛡️ <strong>Auto-restore:</strong> Enabled on data corruption</li>
+								<li>✅ <strong>Level preservation:</strong> Backed up levels are preserved exactly</li>
+							</ul>
+						</div>
+					</div>
 
                     <div class="info-section">
                         <h3>Available Commands</h3>
@@ -796,6 +1255,7 @@ class LevelingPlugin {
                     const levelingSettingsContainer = document.getElementById('levelingSettingsContainer');
                     const leaderboardSection = document.getElementById('leaderboardSection');
                     const adminSection = document.getElementById('adminSection');
+                    const backupSection = document.getElementById('backupSection');
                     const xpSourceMessages = document.getElementById('xpSourceMessages');
                     const xpSourceVoice = document.getElementById('xpSourceVoice');
                     const xpSourceReactions = document.getElementById('xpSourceReactions');
@@ -811,6 +1271,15 @@ class LevelingPlugin {
                     const btnText = saveLevelingSettings ? saveLevelingSettings.querySelector('.btn-text') : null;
                     const btnLoader = saveLevelingSettings ? saveLevelingSettings.querySelector('.btn-loader') : null;
                     
+                    // Backup elements
+                    const createBackupBtn = document.getElementById('createBackupBtn');
+                    const refreshBackupsBtn = document.getElementById('refreshBackupsBtn');
+                    const syncDataBtn = document.getElementById('syncDataBtn');
+                    const backupReason = document.getElementById('backupReason');
+                    const backupLoading = document.getElementById('backupLoading');
+                    const backupList = document.getElementById('backupList');
+                    const backupEmpty = document.getElementById('backupEmpty');
+                    
                     let currentGuildId = null;
                     let currentLeaderboardType = 'overall';
                     
@@ -822,13 +1291,16 @@ class LevelingPlugin {
                                 loadLevelingSettings();
                                 loadLevelingChannels();
                                 loadLeaderboard();
+                                loadBackups();
                                 if (levelingSettingsContainer) levelingSettingsContainer.style.display = 'block';
                                 if (leaderboardSection) leaderboardSection.style.display = 'block';
                                 if (adminSection) adminSection.style.display = 'block';
+                                if (backupSection) backupSection.style.display = 'block';
                             } else {
                                 if (levelingSettingsContainer) levelingSettingsContainer.style.display = 'none';
                                 if (leaderboardSection) leaderboardSection.style.display = 'none';
                                 if (adminSection) adminSection.style.display = 'none';
+                                if (backupSection) backupSection.style.display = 'none';
                             }
                         });
                         loadLevelingServers();
@@ -840,6 +1312,18 @@ class LevelingPlugin {
                     
                     if (addXpBtn) {
                         addXpBtn.addEventListener('click', addXPToUser);
+                    }
+                    
+                    if (createBackupBtn) {
+                        createBackupBtn.addEventListener('click', createManualBackup);
+                    }
+                    
+                    if (refreshBackupsBtn) {
+                        refreshBackupsBtn.addEventListener('click', loadBackups);
+                    }
+                    
+                    if (syncDataBtn) {
+                        syncDataBtn.addEventListener('click', syncUserData);
                     }
                     
                     // Leaderboard type buttons
@@ -1073,6 +1557,204 @@ class LevelingPlugin {
                             }
                         }
                     }
+                    
+                    async function createManualBackup() {
+                        if (!currentGuildId) {
+                            if (window.showNotification) {
+                                window.showNotification('Please select a server first', 'error');
+                            }
+                            return;
+                        }
+                        
+                        try {
+                            createBackupBtn.disabled = true;
+                            createBackupBtn.textContent = '⏳ Creating...';
+                            
+                            const reason = backupReason ? backupReason.value.trim() : '';
+                            
+                            const response = await fetch('/api/plugins/leveling/backup/create', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ reason })
+                            });
+                            
+                            const result = await response.json();
+                            
+                            if (response.ok) {
+                                if (window.showNotification) {
+                                    window.showNotification('Backup created successfully!', 'success');
+                                }
+                                if (backupReason) backupReason.value = '';
+                                loadBackups(); // Refresh the list
+                            } else {
+                                throw new Error(result.error || 'Failed to create backup');
+                            }
+                        } catch (error) {
+                            console.error('Error creating backup:', error);
+                            if (window.showNotification) {
+                                window.showNotification(error.message, 'error');
+                            }
+                        } finally {
+                            createBackupBtn.disabled = false;
+                            createBackupBtn.textContent = '📁 Create Backup Now';
+                        }
+                    }
+                    
+                    async function syncUserData() {
+                        if (!currentGuildId) {
+                            if (window.showNotification) {
+                                window.showNotification('Please select a server first', 'error');
+                            }
+                            return;
+                        }
+                        
+                        try {
+                            syncDataBtn.disabled = true;
+                            syncDataBtn.textContent = '⏳ Validating...';
+                            
+                            const response = await fetch('/api/plugins/leveling/sync', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ guildId: currentGuildId })
+                            });
+                            
+                            const result = await response.json();
+                            
+                            if (response.ok) {
+                                const message = result.changesMade 
+                                    ? 'Data validation completed with changes made'
+                                    : 'Data validation completed - no changes needed';
+                                    
+                                if (window.showNotification) {
+                                    window.showNotification(message, 'success');
+                                }
+                                loadLeaderboard(); // Refresh leaderboard
+                            } else {
+                                throw new Error(result.error || 'Failed to sync data');
+                            }
+                        } catch (error) {
+                            console.error('Error syncing data:', error);
+                            if (window.showNotification) {
+                                window.showNotification(error.message, 'error');
+                            }
+                        } finally {
+                            syncDataBtn.disabled = false;
+                            syncDataBtn.textContent = '⚙️ Validate Data';
+                        }
+                    }
+                    
+                    async function loadBackups() {
+                        try {
+                            if (backupLoading) backupLoading.style.display = 'block';
+                            if (backupList) backupList.style.display = 'none';
+                            if (backupEmpty) backupEmpty.style.display = 'none';
+                            
+                            const response = await fetch('/api/plugins/leveling/backup/list');
+                            const backups = await response.json();
+                            
+                            if (backupList) {
+                                if (backups.length === 0) {
+                                    backupEmpty.style.display = 'block';
+                                } else {
+                                    backupList.innerHTML = backups.map(backup => {
+                                        const date = new Date(backup.created).toLocaleString();
+                                        const size = (backup.size / 1024).toFixed(1) + ' KB';
+                                        const type = backup.metadata?.type || 'unknown';
+                                        const reason = backup.metadata?.reason || 'No reason provided';
+                                        const userCount = backup.metadata?.userCount || 'Unknown';
+                                        
+                                        const typeColors = {
+                                            manual: '#4CAF50',
+                                            periodic: '#2196F3',
+                                            daily: '#FF9800',
+                                            startup: '#9C27B0',
+                                            'pre-save': '#607D8B',
+                                            'pre-restore': '#795548'
+                                        };
+                                        
+                                        const typeColor = typeColors[type] || '#666';
+                                        
+                                        return \`
+                                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; margin-bottom: 8px; background: rgba(255,255,255,0.05); border-radius: 8px; border-left: 4px solid \${typeColor};">
+                                                <div style="flex: 1;">
+                                                    <div style="font-weight: bold; color: white; margin-bottom: 4px;">
+                                                        \${backup.filename}
+                                                    </div>
+                                                    <div style="font-size: 0.85em; opacity: 0.7; margin-bottom: 2px;">
+                                                        📅 \${date} | 📊 \${size} | 👥 \${userCount} users
+                                                    </div>
+                                                    <div style="font-size: 0.8em; opacity: 0.6;">
+                                                        <span style="background: \${typeColor}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75em; margin-right: 8px;">
+                                                            \${type.toUpperCase()}
+                                                        </span>
+                                                        \${reason}
+                                                    </div>
+                                                </div>
+                                                <div style="display: flex; gap: 8px;">
+                                                    <button type="button" onclick="window.restoreBackup('\${backup.filename}')" style="padding: 6px 12px; background: rgba(255, 193, 7, 0.3); border: 1px solid rgba(255, 193, 7, 0.5); border-radius: 6px; color: white; cursor: pointer; font-size: 0.85em;">
+                                                        🔄 Restore
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        \`;
+                                    }).join('');
+                                    backupList.style.display = 'block';
+                                }
+                            }
+                            
+                            if (backupLoading) backupLoading.style.display = 'none';
+                        } catch (error) {
+                            console.error('Error loading backups:', error);
+                            if (backupList) {
+                                backupList.innerHTML = '<div style="text-align: center; color: #ff6b6b; padding: 20px;">Error loading backups</div>';
+                                backupList.style.display = 'block';
+                            }
+                            if (backupLoading) backupLoading.style.display = 'none';
+                        }
+                    }
+                    
+                    // ✅ FIXED: Global function for restore button with level preservation warning
+                    window.restoreBackup = async function(filename) {
+                        if (!confirm(\`⚠️ IMPORTANT: Are you sure you want to restore from backup "\${filename}"? 
+
+This will:
+• Overwrite ALL current leveling data
+• Restore levels EXACTLY as they were backed up
+• Create a backup of current state first
+• Preserve all backed-up user levels without recalculation
+
+This action cannot be undone (except by restoring another backup).\`)) {
+                            return;
+                        }
+                        
+                        try {
+                            const response = await fetch('/api/plugins/leveling/backup/restore', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ 
+                                    filename: filename,
+                                    guildId: currentGuildId 
+                                })
+                            });
+                            
+                            const result = await response.json();
+                            
+                            if (response.ok) {
+                                if (window.showNotification) {
+                                    window.showNotification(\`✅ Successfully restored from \${filename}! Levels preserved exactly as backed up.\`, 'success');
+                                }
+                                loadBackups(); // Refresh the list
+                                loadLeaderboard(); // Refresh leaderboard if visible
+                            } else {
+                                throw new Error(result.error || 'Failed to restore backup');
+                            }
+                        } catch (error) {
+                            console.error('Error restoring backup:', error);
+                            if (window.showNotification) {
+                                window.showNotification(error.message, 'error');
+                            }
+                        }
+                    };
                 })();
             `
         };
