@@ -22,13 +22,13 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildVoiceStates,
-        GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.GuildMessageReactions,
+        GatewayIntentBits.GuildVoiceStates, // Needed for voice XP in levelingPlugin
+        GatewayIntentBits.GuildMembers,     // Needed for this new plugin and auto-role
+        GatewayIntentBits.GuildMessageReactions, // Needed for reaction roles
     ]
 });
 
-// Multer setup
+// Multer setup for file uploads
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         const uploadDir = './uploads';
@@ -44,7 +44,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({ 
     storage: storage,
-    limits: { fileSize: 25 * 1024 * 1024 }
+    limits: { fileSize: 25 * 1024 * 1024 } // 25MB limit
 });
 
 // Express setup
@@ -57,7 +57,7 @@ app.use(session({
     secret: process.env.SESSION_SECRET || 'your-secret-key',
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: false }
+    cookie: { secure: false } // Set to true in production with HTTPS
 }));
 
 // Passport setup
@@ -82,7 +82,7 @@ passport.deserializeUser((user, done) => {
     done(null, user);
 });
 
-// Middleware & Helpers
+// Middleware to check authentication
 function ensureAuthenticated(req, res, next) {
     if (req.isAuthenticated()) {
         return next();
@@ -90,6 +90,7 @@ function ensureAuthenticated(req, res, next) {
     res.redirect('/login');
 }
 
+// Helper function to check if user has admin permissions or moderator role in a guild
 async function hasAdminPermissions(userId, guildId) {
     try {
         const guild = client.guilds.cache.get(guildId);
@@ -97,10 +98,12 @@ async function hasAdminPermissions(userId, guildId) {
         
         const member = await guild.members.fetch(userId);
         
+        // Check if user has Administrator permissions
         if (member.permissions.has(PermissionsBitField.Flags.Administrator)) {
             return true;
         }
         
+        // Check if user has the specific Moderator role
         const moderatorRoleId = '957213892810010645';
         if (member.roles.cache.has(moderatorRoleId)) {
             return true;
@@ -115,7 +118,11 @@ async function hasAdminPermissions(userId, guildId) {
 
 // Routes
 app.get('/', (req, res) => {
-    res.redirect(req.isAuthenticated() ? '/dashboard' : '/login');
+    if (req.isAuthenticated()) {
+        res.redirect('/dashboard');
+    } else {
+        res.sendFile(path.join(__dirname, 'public', 'login.html'));
+    }
 });
 
 app.get('/login', (req, res) => {
@@ -197,8 +204,11 @@ app.get('/api/channels/:serverId', ensureAuthenticated, async (req, res) => {
         }
         
         const channels = guild.channels.cache
+            // 1. Filter for text channels using the ChannelType enum
             .filter(channel => channel.type === ChannelType.GuildText) 
+            // 2. Sort the channels by their position property (This is the fix!)
             .sort((a, b) => a.position - b.position)
+            // 3. Map the sorted channels to the format your frontend expects
             .map(channel => ({
                 id: channel.id,
                 name: channel.name
@@ -211,38 +221,7 @@ app.get('/api/channels/:serverId', ensureAuthenticated, async (req, res) => {
     }
 });
 
-// Get roles for a server
-app.get('/api/roles/:serverId', ensureAuthenticated, async (req, res) => {
-    try {
-        const { serverId } = req.params;
-        
-        if (!await hasAdminPermissions(req.user.id, serverId)) {
-            return res.status(403).json({ error: 'Admin permissions required' });
-        }
-
-        const guild = client.guilds.cache.get(serverId);
-        if (!guild) {
-            return res.status(404).json({ error: 'Server not found' });
-        }
-
-        const roles = guild.roles.cache
-            .filter(role => role.name !== '@everyone')
-            .map(role => ({
-                id: role.id,
-                name: role.name,
-                color: role.hexColor,
-                position: role.position,
-                mentionable: role.mentionable
-            }))
-            .sort((a, b) => b.position - a.position);
-
-        res.json(roles);
-    } catch (error) {
-        console.error('Error fetching roles:', error);
-        res.status(500).json({ error: 'Failed to fetch roles' });
-    }
-});
-
+// API endpoint to expose plugin components
 app.get('/api/plugins/components', ensureAuthenticated, (req, res) => {
     try {
         const components = pluginLoader.getPluginComponents();
@@ -253,38 +232,57 @@ app.get('/api/plugins/components', ensureAuthenticated, (req, res) => {
     }
 });
 
+// Plugin API endpoint
+app.post('/api/message', ensureAuthenticated, upload.array('attachments'), async (req, res) => {
+    try {
+        const { serverId, channelId, message } = req.body;
+        const files = req.files;
+        
+        const hasAdmin = await hasAdminPermissions(req.user.id, serverId);
+        if (!hasAdmin) {
+            return res.status(403).json({ error: 'No admin permissions' });
+        }
+        
+        const channel = client.channels.cache.get(channelId);
+        if (!channel) {
+            return res.status(404).json({ error: 'Channel not found' });
+        }
+        
+        const messageOptions = { content: message };
+        
+        if (files && files.length > 0) {
+            messageOptions.files = files.map(file => ({
+                attachment: file.path,
+                name: file.originalname
+            }));
+        }
+        
+        await channel.send(messageOptions);
+        
+        // Clean up uploaded files
+        if (files) {
+            files.forEach(file => {
+                fs.unlink(file.path, (err) => {
+                    if (err) console.error('Error deleting file:', err);
+                });
+            });
+        }
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error sending message:', error);
+        res.status(500).json({ error: 'Failed to send message' });
+    }
+});
+
 // Load and register plugin routes
 pluginLoader.loadPlugins(app, client, ensureAuthenticated, hasAdminPermissions);
 
 
-// --- FIX: Centralized Slash Command Registration ---
-client.once('ready', async () => {
+// Discord client events
+client.once('ready', () => {
     console.log(`Bot is ready! Logged in as ${client.user.tag}`);
-    try {
-        console.log('Gathering slash commands from all plugins...');
-        const allCommands = pluginLoader.getAllSlashCommands();
-        if (allCommands.length === 0) {
-            console.log('No slash commands to register.');
-            return;
-        }
-
-        console.log(`Found ${allCommands.length} total slash commands. Registering...`);
-        const guilds = client.guilds.cache;
-
-        for (const guild of guilds.values()) {
-            try {
-                await guild.commands.set(allCommands);
-                console.log(`✓ Successfully registered ${allCommands.length} commands for guild: ${guild.name}`);
-            } catch (err) {
-                console.error(`❌ Failed to register commands for guild ${guild.name}:`, err.rawError ? err.rawError.errors : err);
-            }
-        }
-        console.log('🚀 Slash command registration process completed for all guilds.');
-    } catch (error) {
-        console.error('Error during global slash command registration:', error);
-    }
 });
-
 
 client.on('error', console.error);
 

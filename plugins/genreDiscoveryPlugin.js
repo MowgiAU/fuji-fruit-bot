@@ -1,4 +1,4 @@
-const fs = require('fs').promises;
+const fs =require('fs').promises;
 const path = require('path');
 const { SlashCommandBuilder, ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder } = require('discord.js');
 
@@ -438,85 +438,70 @@ class GenreDiscoveryPlugin {
             .addOptions(options);
     }
 
+    // --- FIX: This method provides the command data for the central handler ---
+    getSlashCommands() {
+        return [
+            new SlashCommandBuilder()
+                .setName('genres')
+                .setDescription('🎶 Set your music genres using dropdown menus'),
+            
+            new SlashCommandBuilder()
+                .setName('daws')
+                .setDescription('💻 Set your DAWs/software using dropdown menus'),
+            
+            new SlashCommandBuilder()
+                .setName('remove')
+                .setDescription('🗑️ Remove genres or DAWs from your tags')
+                .addSubcommand(subcommand =>
+                    subcommand
+                        .setName('genre')
+                        .setDescription('Remove a genre from your tags')
+                        .addStringOption(option => option.setName('genre').setDescription('Genre to remove').setRequired(true)))
+                .addSubcommand(subcommand =>
+                    subcommand
+                        .setName('daw')
+                        .setDescription('Remove a DAW from your tags')
+                        .addStringOption(option => option.setName('daw').setDescription('DAW to remove').setRequired(true)))
+                .addSubcommand(subcommand =>
+                    subcommand
+                        .setName('all')
+                        .setDescription('Remove all your tags')
+                        .addStringOption(option => 
+                            option.setName('confirm')
+                            .setDescription('Type "confirm" to remove all tags')
+                            .setRequired(true)
+                            .addChoices(
+                                { name: 'Yes, remove all my tags', value: 'confirm' }
+                            ))),
+                    
+            new SlashCommandBuilder()
+                .setName('mytags')
+                .setDescription('👤 View your current genres and DAWs'),
+                    
+            new SlashCommandBuilder()
+                .setName('find')
+                .setDescription('🔍 Find users by their tags')
+                .addSubcommand(subcommand =>
+                    subcommand
+                        .setName('genre')
+                        .setDescription('Find users by genre')
+                        .addStringOption(option => option.setName('genre').setDescription('Genre to search for').setRequired(true)))
+                .addSubcommand(subcommand =>
+                    subcommand
+                        .setName('daw')
+                        .setDescription('Find users by DAW')
+                        .addStringOption(option => option.setName('daw').setDescription('DAW to search for').setRequired(true))),
+            
+            new SlashCommandBuilder()
+                .setName('tags')
+                .setDescription('👀 View someone\'s tags')
+                .addUserOption(option => option.setName('user').setDescription('User to view tags for')),
+        ].map(command => command.toJSON());
+    }
+
     setupSlashCommands() {
-        this.client.once('ready', async () => {
-            try {
-                const commands = [
-                    new SlashCommandBuilder()
-                        .setName('genres')
-                        .setDescription('🎶 Set your music genres using dropdown menus'),
-                    
-                    new SlashCommandBuilder()
-                        .setName('daws')
-                        .setDescription('💻 Set your DAWs/software using dropdown menus'),
-                    
-                    new SlashCommandBuilder()
-                        .setName('remove')
-                        .setDescription('🗑️ Remove genres or DAWs from your tags')
-                        .addSubcommand(subcommand =>
-                            subcommand
-                                .setName('genre')
-                                .setDescription('Remove a genre from your tags')
-                                .addStringOption(option => option.setName('genre').setDescription('Genre to remove').setRequired(true)))
-                        .addSubcommand(subcommand =>
-                            subcommand
-                                .setName('daw')
-                                .setDescription('Remove a DAW from your tags')
-                                .addStringOption(option => option.setName('daw').setDescription('DAW to remove').setRequired(true)))
-                        .addSubcommand(subcommand =>
-                            subcommand
-                                .setName('all')
-                                .setDescription('Remove all your tags')
-                                .addStringOption(option => 
-                                    option.setName('confirm')
-                                    .setDescription('Type "confirm" to remove all tags')
-                                    .setRequired(true)
-                                    .addChoices(
-                                        { name: 'Yes, remove all my tags', value: 'confirm' }
-                                    ))),
-                            
-                    new SlashCommandBuilder()
-                        .setName('mytags')
-                        .setDescription('👤 View your current genres and DAWs'),
-                            
-                    new SlashCommandBuilder()
-                        .setName('find')
-                        .setDescription('🔍 Find users by their tags')
-                        .addSubcommand(subcommand =>
-                            subcommand
-                                .setName('genre')
-                                .setDescription('Find users by genre')
-                                .addStringOption(option => option.setName('genre').setDescription('Genre to search for').setRequired(true)))
-                        .addSubcommand(subcommand =>
-                            subcommand
-                                .setName('daw')
-                                .setDescription('Find users by DAW')
-                                .addStringOption(option => option.setName('daw').setDescription('DAW to search for').setRequired(true))),
-                    
-                    new SlashCommandBuilder()
-                        .setName('tags')
-                        .setDescription('👀 View someone\'s tags')
-                        .addUserOption(option => option.setName('user').setDescription('User to view tags for')),
-                ];
-
-                const guilds = this.client.guilds.cache;
-                for (const guild of guilds.values()) {
-                    try {
-                        for (const command of commands) {
-                            await guild.commands.create(command.toJSON());
-                        }
-                        console.log(`✓ Registered Genre Discovery commands for guild: ${guild.name}`);
-                    } catch (error) {
-                        console.error(`Error registering commands for guild ${guild.name}:`, error);
-                    }
-                }
-                
-                console.log('✓ Genre Discovery slash commands registered.');
-            } catch (error) {
-                console.error('Error registering Genre Discovery commands:', error);
-            }
-        });
-
+        // --- FIX: The registration logic is now moved to app.js ---
+        // This method now only sets up the listener for the commands.
         this.client.on('interactionCreate', async (interaction) => {
             if (interaction.isChatInputCommand()) {
                 const { commandName } = interaction;

@@ -46,7 +46,6 @@ class PluginLoader {
         }));
     }
 
-    // Get all plugin frontend components
     getPluginComponents() {
         const components = [];
         
@@ -64,6 +63,24 @@ class PluginLoader {
         }
         
         return components;
+    }
+
+    // --- NEW METHOD: Gathers all slash commands from all plugins ---
+    getAllSlashCommands() {
+        let allCommands = [];
+        for (const plugin of this.plugins) {
+            if (typeof plugin.getSlashCommands === 'function') {
+                try {
+                    const pluginCommands = plugin.getSlashCommands();
+                    if (Array.isArray(pluginCommands)) {
+                        allCommands = allCommands.concat(pluginCommands);
+                    }
+                } catch (error) {
+                    console.error(`Error getting slash commands from ${plugin.name}:`, error);
+                }
+            }
+        }
+        return allCommands;
     }
 }
 
