@@ -1,611 +1,383 @@
 const fs = require('fs');
-const path = require('path');
 const https = require('https');
+const { EmbedBuilder, SlashCommandBuilder, PermissionsBitField } = require('discord.js');
 
 class EventManagerPlugin {
     constructor(app, client, ensureAuthenticated, hasAdminPermissions) {
         this.name = 'Event Manager';
-        this.description = 'Manage collaborations, competitions, and company promotions with Google Sheets integration';
-        this.version = '1.0.0';
+        this.description = 'Manage collaborations and competitions with Google Sheets integration';
+        this.version = '3.4.0';
         this.enabled = true;
-        
+
         this.app = app;
         this.client = client;
         this.ensureAuthenticated = ensureAuthenticated;
         this.hasAdminPermissions = hasAdminPermissions;
-        
+
         this.settingsFile = './data/eventManagerSettings.json';
         this.collaborationsFile = './data/eventManagerCollaborations.json';
-        
+
         this.initializeDataFiles();
         this.setupRoutes();
-        
-        console.log('Event Manager Plugin loaded successfully');
+        this.setupSlashCommands();
+
+        console.log('Event Manager Plugin loaded successfully.');
     }
 
     initializeDataFiles() {
-        const defaultSettings = {
-            googleSheetsId: '1_3XMoAsn6HbYBO0V8fBLQqyUipzxRlWPrah5DEUR2uc',
-            notificationChannelId: '',
-            eventReminderRoleId: '',
-            autoSync: false,
-            syncInterval: 3600000,
-            lastSync: 0,
-            reminderDays: [7, 3, 1],
-            statusColors: {
-                'Active': '#00ff00',
-                'Pending': '#ffff00',
-                'Completed': '#0080ff',
-                'Cancelled': '#ff0000',
-                'On Hold': '#ff8000'
-            }
-        };
-
-        const defaultCollaborations = {
-            lastUpdated: 0,
-            data: []
-        };
-
-        if (!fs.existsSync('./data')) {
-            fs.mkdirSync('./data');
-        }
-
-        if (!fs.existsSync(this.settingsFile)) {
-            fs.writeFileSync(this.settingsFile, JSON.stringify(defaultSettings, null, 2));
-        }
-
-        if (!fs.existsSync(this.collaborationsFile)) {
-            fs.writeFileSync(this.collaborationsFile, JSON.stringify(defaultCollaborations, null, 2));
-        }
+        if (!fs.existsSync('./data')) fs.mkdirSync('./data');
+        if (!fs.existsSync(this.settingsFile)) fs.writeFileSync(this.settingsFile, JSON.stringify({}, null, 2));
+        if (!fs.existsSync(this.collaborationsFile)) fs.writeFileSync(this.collaborationsFile, JSON.stringify({ lastUpdated: 0, data: [] }, null, 2));
     }
 
     loadSettings() {
         try {
             return JSON.parse(fs.readFileSync(this.settingsFile, 'utf8'));
-        } catch (error) {
-            console.error('Error loading event manager settings:', error);
+        } catch {
             return {};
         }
     }
 
     saveSettings(settings) {
-        try {
-            fs.writeFileSync(this.settingsFile, JSON.stringify(settings, null, 2));
-            return true;
-        } catch (error) {
-            console.error('Error saving event manager settings:', error);
-            return false;
-        }
+        fs.writeFileSync(this.settingsFile, JSON.stringify(settings, null, 2));
     }
 
     loadCollaborations() {
-        try {
-            return JSON.parse(fs.readFileSync(this.collaborationsFile, 'utf8'));
-        } catch (error) {
-            console.error('Error loading collaborations data:', error);
-            return { lastUpdated: 0, data: [] };
-        }
+        return JSON.parse(fs.readFileSync(this.collaborationsFile, 'utf8'));
     }
 
     saveCollaborations(collaborations) {
-        try {
-            fs.writeFileSync(this.collaborationsFile, JSON.stringify(collaborations, null, 2));
-            return true;
-        } catch (error) {
-            console.error('Error saving collaborations data:', error);
-            return false;
-        }
+        fs.writeFileSync(this.collaborationsFile, JSON.stringify(collaborations, null, 2));
     }
 
     async syncFromGoogleSheets() {
-        const settings = this.loadSettings();
-        const csvUrl = `https://docs.google.com/spreadsheets/d/${settings.googleSheetsId}/export?format=csv&gid=0`;
-        
+        const csvUrl = 'https://docs.google.com/spreadsheets/d/1_3XMoAsn6HbYBO0V8fBLQqyUipzxRlWPrah5DEUR2uc/export?format=csv&gid=0';
         return new Promise((resolve, reject) => {
-            https.get(csvUrl, (response) => {
+            https.get(csvUrl, (res) => {
                 let data = '';
-                
-                response.on('data', (chunk) => {
-                    data += chunk;
+                res.on('data', chunk => data += chunk);
+                res.on('end', () => {
+                    const collaborations = this.parseCSV(data);
+                    this.saveCollaborations({ lastUpdated: Date.now(), data: collaborations });
+                    resolve(collaborations);
                 });
-                
-                response.on('end', () => {
-                    try {
-                        const collaborations = this.parseCSV(data);
-                        const collaborationData = {
-                            lastUpdated: Date.now(),
-                            data: collaborations
-                        };
-                        
-                        if (this.saveCollaborations(collaborationData)) {
-                            resolve(collaborations);
-                        } else {
-                            reject(new Error('Failed to save collaboration data'));
-                        }
-                    } catch (error) {
-                        reject(error);
-                    }
-                });
-            }).on('error', (error) => {
-                reject(error);
-            });
+            }).on('error', reject);
         });
     }
 
     parseCSV(csvData) {
-        const lines = csvData.split('\n');
+        const lines = csvData.trim().split('\n');
         const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
         const collaborations = [];
 
         for (let i = 1; i < lines.length; i++) {
-            if (lines[i].trim() === '') continue;
-            
-            const values = this.parseCSVLine(lines[i]);
-            const collaboration = {};
-            
-            headers.forEach((header, index) => {
-                collaboration[header] = values[index] || '';
-            });
-            
-            if (collaboration['Collaborator'] && collaboration['Collaborator'].trim()) {
-                collaborations.push(collaboration);
-            }
-        }
-
-        return collaborations;
-    }
-
-    parseCSVLine(line) {
-        const result = [];
-        let current = '';
-        let inQuotes = false;
-        
-        for (let i = 0; i < line.length; i++) {
-            const char = line[i];
-            
-            if (char === '"') {
-                inQuotes = !inQuotes;
-            } else if (char === ',' && !inQuotes) {
-                result.push(current.trim());
-                current = '';
-            } else {
-                current += char;
-            }
-        }
-        
-        result.push(current.trim());
-        return result;
-    }
-
-    setupRoutes() {
-        this.app.get('/api/plugins/eventmanager/settings', this.ensureAuthenticated, async (req, res) => {
-            try {
-                if (!await this.hasAdminPermissions(req.user.id, req.query.guildId)) {
-                    return res.status(403).json({ error: 'Admin permissions required' });
-                }
-
-                const settings = this.loadSettings();
-                res.json(settings);
-            } catch (error) {
-                res.status(500).json({ error: error.message });
-            }
-        });
-
-        this.app.post('/api/plugins/eventmanager/settings', this.ensureAuthenticated, async (req, res) => {
-            try {
-                if (!await this.hasAdminPermissions(req.user.id, req.body.guildId)) {
-                    return res.status(403).json({ error: 'Admin permissions required' });
-                }
-
-                const currentSettings = this.loadSettings();
-                const newSettings = { ...currentSettings, ...req.body };
-                
-                if (this.saveSettings(newSettings)) {
-                    res.json({ success: true, message: 'Settings updated successfully' });
+            if (!lines[i].trim()) continue;
+            const values = [];
+            let current = '';
+            let inQuotes = false;
+            for (let j = 0; j < lines[i].length; j++) {
+                const char = lines[i][j];
+                if (char === '"') {
+                    inQuotes = !inQuotes;
+                } else if (char === ',' && !inQuotes) {
+                    values.push(current.trim().replace(/"/g, ''));
+                    current = '';
                 } else {
-                    res.status(500).json({ error: 'Failed to save settings' });
+                    current += char;
                 }
-            } catch (error) {
-                res.status(500).json({ error: error.message });
             }
-        });
-
-        this.app.get('/api/plugins/eventmanager/collaborations', this.ensureAuthenticated, async (req, res) => {
-            try {
-                if (!await this.hasAdminPermissions(req.user.id, req.query.guildId)) {
-                    return res.status(403).json({ error: 'Admin permissions required' });
-                }
-
-                const collaborations = this.loadCollaborations();
-                res.json(collaborations);
-            } catch (error) {
-                res.status(500).json({ error: error.message });
-            }
-        });
-
-        this.app.post('/api/plugins/eventmanager/sync', this.ensureAuthenticated, async (req, res) => {
-            try {
-                if (!await this.hasAdminPermissions(req.user.id, req.body.guildId)) {
-                    return res.status(403).json({ error: 'Admin permissions required' });
-                }
-
-                const collaborations = await this.syncFromGoogleSheets();
-                res.json({ 
-                    success: true, 
-                    message: `Synced ${collaborations.length} collaborations from Google Sheets`,
-                    data: collaborations
-                });
-            } catch (error) {
-                res.status(500).json({ error: error.message });
-            }
-        });
-
-        this.app.get('/api/plugins/eventmanager/upcoming', this.ensureAuthenticated, async (req, res) => {
-            try {
-                if (!await this.hasAdminPermissions(req.user.id, req.query.guildId)) {
-                    return res.status(403).json({ error: 'Admin permissions required' });
-                }
-
-                const collaborations = this.loadCollaborations();
-                const upcoming = this.getUpcomingEvents(collaborations.data);
-                res.json(upcoming);
-            } catch (error) {
-                res.status(500).json({ error: error.message });
-            }
-        });
+            values.push(current.trim().replace(/"/g, ''));
+            const row = {};
+            headers.forEach((header, index) => {
+                row[header] = values[index] || '';
+            });
+            collaborations.push(row);
+        }
+        return collaborations;
     }
 
     getUpcomingEvents(collaborations) {
         const now = new Date();
         const upcoming = [];
-
         collaborations.forEach(collab => {
-            const events = [];
-            
             const dateFields = [
                 { field: 'Competition Begin', type: 'Competition Start' },
                 { field: 'Competition End', type: 'Competition End' },
                 { field: 'Voting Start', type: 'Voting Begins' },
-                { field: 'Voting Second Round', type: 'Second Round Voting' },
                 { field: 'Voting End', type: 'Voting Ends' }
             ];
-
             dateFields.forEach(({ field, type }) => {
                 if (collab[field]) {
                     const eventDate = new Date(collab[field]);
                     if (eventDate > now) {
                         const daysUntil = Math.ceil((eventDate - now) / (1000 * 60 * 60 * 24));
-                        events.push({
+                        upcoming.push({
                             collaboration: collab['Collaborator'],
-                            type: type,
+                            type,
                             date: eventDate,
-                            daysUntil: daysUntil,
+                            daysUntil,
                             status: collab['Status']
                         });
                     }
                 }
             });
+        });
+        return upcoming.sort((a, b) => a.date - b.date);
+    }
 
-            upcoming.push(...events);
+    async checkPermissions(interaction) {
+        const settings = this.loadSettings();
+        const guildId = interaction.guildId;
+        const guildSettings = settings[guildId];
+
+        const member = await interaction.guild.members.fetch(interaction.user.id);
+
+        if (!guildSettings) {
+            await interaction.reply({ content: '❌ Event Manager permissions not configured.', ephemeral: true });
+            return false;
+        }
+        if (!guildSettings.allowedChannels.includes(interaction.channelId)) {
+            await interaction.reply({ content: '❌ You cannot use this command in this channel.', ephemeral: true });
+            return false;
+        }
+        if (member.permissions.has(PermissionsBitField.Flags.Administrator)) return true;
+
+        const hasRole = member.roles.cache.some(role => guildSettings.allowedRoles.includes(role.id));
+        if (hasRole) return true;
+
+        await interaction.reply({ content: '❌ You do not have permission to use this command.', ephemeral: true });
+        return false;
+    }
+
+    setupSlashCommands() {
+        this.client.on('interactionCreate', async (interaction) => {
+            if (!interaction.isChatInputCommand()) return;
+            if (!await this.checkPermissions(interaction)) return;
+
+            const collaborations = this.loadCollaborations().data;
+            const { commandName } = interaction;
+
+            if (commandName === 'upcomingevents') {
+                const upcoming = this.getUpcomingEvents(collaborations);
+                if (!upcoming.length) {
+                    await interaction.reply('✅ No upcoming events.');
+                    return;
+                }
+                const embed = new EmbedBuilder()
+                    .setColor(0x7289da)
+                    .setTitle('📅 Upcoming Events')
+                    .setDescription(
+                        upcoming.slice(0, 10)
+                            .map(e => `**${e.collaboration}** (${e.type})\n📆 ${e.date.toLocaleDateString()} (${e.daysUntil} days)\n🟢 ${e.status}`)
+                            .join('\n\n')
+                    );
+                await interaction.reply({ embeds: [embed] });
+            }
+
+            if (commandName === 'competitionstatus') {
+                const name = interaction.options.getString('name');
+                const match = collaborations.find(c => c['Collaborator'].toLowerCase().includes(name.toLowerCase()));
+                if (!match) {
+                    await interaction.reply(`❌ No competition found with name matching "${name}".`);
+                    return;
+                }
+                const embed = new EmbedBuilder()
+                    .setColor(0x00bfff)
+                    .setTitle(`ℹ️ ${match['Collaborator']}`)
+                    .addFields(
+                        { name: 'Status', value: match['Status'] || 'N/A' },
+                        { name: 'Product', value: match['Product'] || 'N/A' },
+                        { name: 'Last Contact', value: match['Last Contact'] || 'N/A' },
+                        { name: 'Notes', value: match['Notes'] || 'N/A' }
+                    );
+                await interaction.reply({ embeds: [embed] });
+            }
+
+            if (commandName === 'competitionsummary') {
+                const counts = collaborations.reduce((acc, c) => {
+                    acc[c.Status] = (acc[c.Status] || 0) + 1;
+                    return acc;
+                }, {});
+                const embed = new EmbedBuilder()
+                    .setColor(0x00ff99)
+                    .setTitle('📊 Competitions Summary')
+                    .setDescription(
+                        Object.entries(counts)
+                            .map(([status, count]) => `**${status}**: ${count}`)
+                            .join('\n')
+                    );
+                await interaction.reply({ embeds: [embed] });
+            }
+
+            if (commandName === 'lastcontact') {
+                const sorted = [...collaborations].sort((a, b) => {
+                    const dateA = new Date(a['Last Contact'] || 0);
+                    const dateB = new Date(b['Last Contact'] || 0);
+                    return dateB - dateA;
+                });
+                const embed = new EmbedBuilder()
+                    .setColor(0xcccccc)
+                    .setTitle('🕐 Last Contact')
+                    .setDescription(
+                        sorted.slice(0, 10)
+                            .map(c => `**${c['Collaborator']}**\n🟢 ${c['Status']}\n📆 ${c['Last Contact'] || 'N/A'}`)
+                            .join('\n\n')
+                    );
+                await interaction.reply({ embeds: [embed] });
+            }
+        });
+    }
+
+    getSlashCommands() {
+        return [
+            new SlashCommandBuilder().setName('upcomingevents').setDescription('Show upcoming competitions and events.'),
+            new SlashCommandBuilder().setName('competitionstatus').setDescription('Get the status of a specific competition.')
+                .addStringOption(option => option.setName('name').setDescription('Part of the collaborator name').setRequired(true)),
+            new SlashCommandBuilder().setName('competitionsummary').setDescription('Show counts of competitions per status.'),
+            new SlashCommandBuilder().setName('lastcontact').setDescription('Show recent contacts sorted by date.')
+        ].map(cmd => cmd.toJSON());
+    }
+
+    setupRoutes() {
+        this.app.get('/api/plugins/eventmanager/settings/:guildId', this.ensureAuthenticated, (req, res) => {
+            const settings = this.loadSettings();
+            res.json(settings[req.params.guildId] || { allowedRoles: [], allowedChannels: [] });
         });
 
-        return upcoming.sort((a, b) => a.date - b.date);
+        this.app.post('/api/plugins/eventmanager/settings/:guildId', this.ensureAuthenticated, (req, res) => {
+            const settings = this.loadSettings();
+            settings[req.params.guildId] = req.body;
+            this.saveSettings(settings);
+            res.json({ success: true });
+        });
+
+        this.app.get('/api/plugins/eventmanager/server-data/:guildId', this.ensureAuthenticated, (req, res) => {
+            const guild = this.client.guilds.cache.get(req.params.guildId);
+            if (!guild) return res.status(404).json({ error: 'Guild not found' });
+            const roles = guild.roles.cache.filter(r => r.name !== '@everyone').map(r => ({ id: r.id, name: r.name }));
+            const channels = guild.channels.cache.filter(c => c.isTextBased()).map(c => ({ id: c.id, name: c.name }));
+            res.json({ roles, channels });
+        });
+
+        this.app.post('/api/plugins/eventmanager/sync', this.ensureAuthenticated, async (req, res) => {
+            try {
+                const collaborations = await this.syncFromGoogleSheets();
+                res.json({ success: true, data: collaborations });
+            } catch (error) {
+                res.status(500).json({ error: error.message });
+            }
+        });
     }
 
     getFrontendComponent() {
         return {
             id: 'event-manager',
             name: 'Event Manager',
-            description: 'Manage collaborations, competitions, and company promotions',
+            description: 'Manage competitions and collaborations',
             icon: '📅',
             containerId: 'eventManagerContainer',
             pageId: 'event-manager',
             navIcon: '📅',
-            html: `
-                <div class="plugin-container">
-                    <h3>📅 Event Manager</h3>
-                    <p>Manage collaborations and competitions with Google Sheets integration</p>
-
+            html: `<div class="plugin-container glass-panel">
+                <div class="plugin-header">
+                    <h3><span class="plugin-icon">📅</span> Event Manager</h3>
+                    <p>Manage collaborations and competition permissions</p>
+                </div>
+                <div class="form-group">
+                    <label>Server</label>
+                    <select id="eventServerSelect" class="form-control"></select>
+                </div>
+                <div id="eventSettings" style="display:none; margin-top:20px;">
                     <div class="form-group">
-                        <label for="eventServerSelect">Server:</label>
-                        <select id="eventServerSelect" class="form-control">
-                            <option value="">Select a server...</option>
-                        </select>
+                        <label>Allowed Roles</label>
+                        <select id="eventRoles" class="form-control" multiple></select>
                     </div>
-
                     <div class="form-group">
-                        <label for="eventNotificationChannel">Notification Channel:</label>
-                        <select id="eventNotificationChannel" class="form-control" disabled>
-                            <option value="">Select a channel...</option>
-                        </select>
+                        <label>Allowed Channels</label>
+                        <select id="eventChannels" class="form-control" multiple></select>
                     </div>
-
-                    <div class="form-group">
-                        <label for="eventReminderRole">Reminder Role:</label>
-                        <select id="eventReminderRole" class="form-control" disabled>
-                            <option value="">Select a role...</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label>
-                            <input type="checkbox" id="eventAutoSync"> Enable Auto-Sync (hourly)
-                        </label>
-                    </div>
-
-                    <div class="form-group">
-                        <button class="btn btn-primary" onclick="saveEventSettings()">Save Settings</button>
-                        <button class="btn btn-secondary" onclick="syncEventData()">Sync Now</button>
-                    </div>
-
-                    <div class="dashboard-section">
-                        <h4>📊 Dashboard</h4>
-                        <div class="stats-grid">
-                            <div class="stat-card">
-                                <h5>Total Collaborations</h5>
-                                <span id="totalCollaborations">-</span>
-                            </div>
-                            <div class="stat-card">
-                                <h5>Active Competitions</h5>
-                                <span id="activeCompetitions">-</span>
-                            </div>
-                            <div class="stat-card">
-                                <h5>Upcoming Events</h5>
-                                <span id="upcomingEvents">-</span>
-                            </div>
-                            <div class="stat-card">
-                                <h5>Last Sync</h5>
-                                <span id="lastSync">-</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="events-section">
-                        <h4>⏰ Upcoming Events</h4>
-                        <div id="upcomingEventsTable"></div>
-                    </div>
-
-                    <div class="collaborations-section">
-                        <h4>🤝 Collaborations</h4>
-                        <div class="form-group">
-                            <input type="text" id="collaborationSearch" placeholder="Search collaborations..." class="form-control">
-                        </div>
-                        <div id="collaborationsTable"></div>
+                    <div style="display:flex; gap:10px; margin-top:10px;">
+                        <button id="saveEventSettingsBtn" class="btn-primary">💾 Save Settings</button>
+                        <button id="syncEventsBtn" class="btn-secondary">🔄 Sync Google Sheet</button>
                     </div>
                 </div>
-            `,
-            script: `
-                console.log("Event Manager: Initializing frontend component...");
-                
-                let eventSettings = {};
-                let collaborationsData = [];
-                let upcomingEventsData = [];
-                let currentServerId = null;
-
-                async function loadServers() {
-                    console.log("Event Manager: Loading servers...");
-                    try {
-                        const response = await fetch("/api/servers");
-                        const servers = await response.json();
-                        
-                        console.log("Event Manager: Received servers:", servers.length);
-                        
-                        const serverSelect = document.getElementById("eventServerSelect");
-                        if (serverSelect) {
-                            serverSelect.innerHTML = '<option value="">Select a server...</option>';
-                            servers.forEach(server => {
-                                const option = document.createElement("option");
-                                option.value = server.id;
-                                option.textContent = server.name;
-                                serverSelect.appendChild(option);
-                            });
-                            
-                            console.log("Event Manager: Server dropdown populated successfully");
-                        }
-                    } catch (error) {
-                        console.error("Event Manager: Error loading servers:", error);
-                        if (typeof showNotification === "function") {
-                            showNotification("Error loading servers", "error");
-                        }
-                    }
-                }
-
-                async function loadChannelsForServer(serverId) {
-                    console.log("Event Manager: Loading channels for server:", serverId);
-                    try {
-                        const response = await fetch("/api/channels/" + serverId);
-                        const channels = await response.json();
-                        
-                        const channelSelect = document.getElementById("eventNotificationChannel");
-                        if (channelSelect) {
-                            channelSelect.innerHTML = '<option value="">Select a channel...</option>';
-                            channels.forEach(channel => {
-                                const option = document.createElement("option");
-                                option.value = channel.id;
-                                option.textContent = "#" + channel.name;
-                                channelSelect.appendChild(option);
-                            });
-                        }
-                    } catch (error) {
-                        console.error("Event Manager: Error loading channels:", error);
-                    }
-                }
-
-                async function loadRolesForServer(serverId) {
-                    console.log("Event Manager: Loading roles for server:", serverId);
-                    try {
-                        const response = await fetch("/api/roles/" + serverId);
-                        const roles = await response.json();
-                        
-                        const roleSelect = document.getElementById("eventReminderRole");
-                        if (roleSelect) {
-                            roleSelect.innerHTML = '<option value="">Select a role...</option>';
-                            roles.forEach(role => {
-                                const option = document.createElement("option");
-                                option.value = role.id;
-                                option.textContent = "@" + role.name;
-                                roleSelect.appendChild(option);
-                            });
-                        }
-                    } catch (error) {
-                        console.error("Event Manager: Error loading roles:", error);
-                    }
-                }
-
-                async function loadCollaborationsForServer(serverId) {
-                    console.log("Event Manager: Loading collaborations for server:", serverId);
-                    try {
-                        const response = await fetch("/api/plugins/eventmanager/collaborations?guildId=" + serverId);
-                        const data = await response.json();
-                        
-                        collaborationsData = data.data || [];
-                        updateDashboard();
-                        renderCollaborationsTable();
-                    } catch (error) {
-                        console.error("Event Manager: Error loading collaborations:", error);
-                    }
-                }
-
-                function updateDashboard() {
-                    const totalCollabs = collaborationsData.length;
-                    const activeCompetitions = collaborationsData.filter(c => c.Status === "Active").length;
-                    
-                    const totalEl = document.getElementById("totalCollaborations");
-                    const activeEl = document.getElementById("activeCompetitions");
-                    
-                    if (totalEl) totalEl.textContent = totalCollabs;
-                    if (activeEl) activeEl.textContent = activeCompetitions;
-                }
-
-                function renderCollaborationsTable() {
-                    const container = document.getElementById("collaborationsTable");
-                    if (!container) return;
-                    
-                    if (collaborationsData.length === 0) {
-                        container.innerHTML = "<p>No collaborations found. <button onclick='syncEventData()' class='btn btn-primary'>Sync from Google Sheets</button></p>";
-                        return;
-                    }
-
-                    let tableHTML = "<table class='table'><thead><tr><th>Collaborator</th><th>Contact</th><th>Status</th><th>Competition Begin</th><th>Product</th></tr></thead><tbody>";
-                    
-                    collaborationsData.slice(0, 10).forEach(collab => {
-                        tableHTML += "<tr>";
-                        tableHTML += "<td>" + (collab.Collaborator || "-") + "</td>";
-                        tableHTML += "<td>" + (collab["Contact Name"] || "-") + "</td>";
-                        tableHTML += "<td>" + (collab.Status || "-") + "</td>";
-                        tableHTML += "<td>" + (collab["Competition Begin"] || "-") + "</td>";
-                        tableHTML += "<td>" + (collab["Product Name"] || "-") + "</td>";
-                        tableHTML += "</tr>";
-                    });
-                    
-                    tableHTML += "</tbody></table>";
-                    container.innerHTML = tableHTML;
-                }
-
-                // Event listeners
-                const serverSelect = document.getElementById("eventServerSelect");
-                if (serverSelect) {
-                    loadServers();
-                    
-                    serverSelect.addEventListener("change", async (e) => {
-                        currentServerId = e.target.value;
-                        console.log("Event Manager: Server changed to:", currentServerId);
-                        
-                        if (currentServerId) {
-                            document.getElementById("eventNotificationChannel").disabled = false;
-                            document.getElementById("eventReminderRole").disabled = false;
-                            
-                            await loadChannelsForServer(currentServerId);
-                            await loadRolesForServer(currentServerId);
-                            await loadCollaborationsForServer(currentServerId);
-                        } else {
-                            document.getElementById("eventNotificationChannel").disabled = true;
-                            document.getElementById("eventReminderRole").disabled = true;
-                        }
+            </div>`,
+            script: `(function(){
+                const serverSelect = document.getElementById('eventServerSelect');
+                const settingsDiv = document.getElementById('eventSettings');
+                const rolesSelect = document.getElementById('eventRoles');
+                const channelsSelect = document.getElementById('eventChannels');
+                const saveBtn = document.getElementById('saveEventSettingsBtn');
+                const syncBtn = document.getElementById('syncEventsBtn');
+                let currentServer = null;
+                async function loadServers(){
+                    const res = await fetch('/api/servers');
+                    const servers = await res.json();
+                    serverSelect.innerHTML = '<option value="">Select server...</option>';
+                    servers.forEach(s => {
+                        const opt = document.createElement('option');
+                        opt.value = s.id;
+                        opt.textContent = s.name;
+                        serverSelect.appendChild(opt);
                     });
                 }
-
-                // Global functions
-                window.saveEventSettings = function() {
-                    if (!currentServerId) {
-                        if (typeof showNotification === "function") {
-                            showNotification("Please select a server first", "error");
-                        }
+                async function loadServerData(serverId){
+                    const res = await fetch('/api/plugins/eventmanager/server-data/' + serverId);
+                    const data = await res.json();
+                    rolesSelect.innerHTML = '';
+                    channelsSelect.innerHTML = '';
+                    data.roles.forEach(r => {
+                        const opt = document.createElement('option');
+                        opt.value = r.id;
+                        opt.textContent = r.name;
+                        rolesSelect.appendChild(opt);
+                    });
+                    data.channels.forEach(c => {
+                        const opt = document.createElement('option');
+                        opt.value = c.id;
+                        opt.textContent = '#' + c.name;
+                        channelsSelect.appendChild(opt);
+                    });
+                }
+                async function loadSettings(serverId){
+                    const res = await fetch('/api/plugins/eventmanager/settings/' + serverId);
+                    const settings = await res.json();
+                    [...rolesSelect.options].forEach(o => {
+                        o.selected = (settings.allowedRoles && settings.allowedRoles.includes(o.value));
+                    });
+                    [...channelsSelect.options].forEach(o => {
+                        o.selected = (settings.allowedChannels && settings.allowedChannels.includes(o.value));
+                    });
+                }
+                serverSelect.addEventListener('change', async ()=>{
+                    currentServer = serverSelect.value;
+                    if(!currentServer){
+                        settingsDiv.style.display='none';
                         return;
                     }
-                    
-                    const settings = {
-                        guildId: currentServerId,
-                        notificationChannelId: document.getElementById("eventNotificationChannel").value,
-                        eventReminderRoleId: document.getElementById("eventReminderRole").value,
-                        autoSync: document.getElementById("eventAutoSync").checked
+                    await loadServerData(currentServer);
+                    await loadSettings(currentServer);
+                    settingsDiv.style.display='block';
+                });
+                saveBtn.addEventListener('click', async ()=>{
+                    if(!currentServer) return;
+                    const body={
+                        allowedRoles: [...rolesSelect.selectedOptions].map(o=>o.value),
+                        allowedChannels: [...channelsSelect.selectedOptions].map(o=>o.value)
                     };
-
-                    fetch("/api/plugins/eventmanager/settings", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(settings)
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            if (typeof showNotification === "function") {
-                                showNotification("Settings saved successfully!", "success");
-                            }
-                        } else {
-                            if (typeof showNotification === "function") {
-                                showNotification("Error saving settings", "error");
-                            }
-                        }
-                    })
-                    .catch(error => {
-                        console.error("Error saving settings:", error);
-                        if (typeof showNotification === "function") {
-                            showNotification("Error saving settings", "error");
-                        }
+                    await fetch('/api/plugins/eventmanager/settings/' + currentServer,{
+                        method:'POST',
+                        headers:{'Content-Type':'application/json'},
+                        body: JSON.stringify(body)
                     });
-                };
-
-                window.syncEventData = function() {
-                    if (!currentServerId) {
-                        if (typeof showNotification === "function") {
-                            showNotification("Please select a server first", "error");
-                        }
-                        return;
-                    }
-
-                    if (typeof showNotification === "function") {
-                        showNotification("Syncing data from Google Sheets...", "info");
-                    }
-
-                    fetch("/api/plugins/eventmanager/sync", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ guildId: currentServerId })
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            if (typeof showNotification === "function") {
-                                showNotification(data.message, "success");
-                            }
-                            loadCollaborationsForServer(currentServerId);
-                        } else {
-                            if (typeof showNotification === "function") {
-                                showNotification("Error syncing data", "error");
-                            }
-                        }
-                    })
-                    .catch(error => {
-                        console.error("Error syncing data:", error);
-                        if (typeof showNotification === "function") {
-                            showNotification("Error syncing data", "error");
-                        }
-                    });
-                };
-
-                console.log("Event Manager: Frontend component initialized successfully");
-            `
+                    alert('✅ Settings saved.');
+                });
+                syncBtn.addEventListener('click', async ()=>{
+                    await fetch('/api/plugins/eventmanager/sync',{method:'POST'});
+                    alert('✅ Synced from Google Sheets.');
+                });
+                loadServers();
+            })()`
         };
     }
 }

@@ -94,6 +94,46 @@ class AutoRolePlugin {
         }
     }
 	setupRoutes() {
+        this.app.get('/api/plugins/autorole/export/:serverId', this.ensureAuthenticated, async (req, res) => {
+            try {
+                const { serverId } = req.params;
+
+                if (!await this.hasAdminPermissions(req.user.id, serverId)) {
+                    return res.status(403).json({ error: 'Insufficient permissions' });
+                }
+
+                const guild = this.client.guilds.cache.get(serverId);
+                if (!guild) {
+                    return res.status(404).json({ error: 'Guild not found' });
+                }
+
+                const exportData = {
+                    plugin: 'AutoRoleSystem',
+                    version: this.version,
+                    exportDate: new Date().toISOString(),
+                    guildInfo: {
+                        id: guild.id,
+                        name: guild.name
+                    },
+                    autoRoleSettings: this.autoRoleSettings[serverId] || {},
+                    reactionRoles: this.reactionRoles[serverId] || {},
+                    levelRoles: this.levelRoles[serverId] || {}
+                };
+
+                const filename = `fuji_autorole_backup_${guild.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_${new Date().toISOString().split('T')[0]}.json`;
+                
+                // --- FIX START: Use res.attachment() to robustly set download headers ---
+                res.setHeader('Content-Type', 'application/json');
+                res.attachment(filename); // This sets the Content-Disposition header correctly
+                res.status(200).send(JSON.stringify(exportData, null, 2));
+                // --- FIX END ---
+
+            } catch (error) {
+                console.error('Error exporting auto-role settings:', error);
+                res.status(500).json({ error: 'Failed to export settings' });
+            }
+        });
+
         // Get all auto-role settings for a server
         this.app.get('/api/plugins/autorole/settings/:serverId', this.ensureAuthenticated, async (req, res) => {
             try {
@@ -198,6 +238,85 @@ class AutoRolePlugin {
                 res.status(500).json({ error: 'Internal server error' });
             }
         });
+        
+        this.app.get('/api/plugins/autorole/reactionroles/:serverId/:messageId', this.ensureAuthenticated, async (req, res) => {
+            try {
+                const { serverId, messageId } = req.params;
+                if (!await this.hasAdminPermissions(req.user.id, serverId)) {
+                    return res.status(403).json({ error: 'Insufficient permissions' });
+                }
+                const reactionRole = this.reactionRoles[serverId]?.[messageId];
+                if (!reactionRole) {
+                    return res.status(404).json({ error: 'Reaction role not found' });
+                }
+                res.json(reactionRole);
+            } catch (error) {
+                res.status(500).json({ error: 'Internal server error' });
+            }
+        });
+        
+        this.app.put('/api/plugins/autorole/reactionroles/:serverId/:messageId', this.ensureAuthenticated, async (req, res) => {
+            try {
+                const { serverId, messageId } = req.params;
+                const { title, description, roles, maxRoles, removeOnUnreact } = req.body;
+        
+                if (!await this.hasAdminPermissions(req.user.id, serverId)) {
+                    return res.status(403).json({ error: 'Insufficient permissions' });
+                }
+        
+                const reactionRoleData = this.reactionRoles[serverId]?.[messageId];
+                if (!reactionRoleData) {
+                    return res.status(404).json({ error: 'Reaction role not found' });
+                }
+        
+                const guild = this.client.guilds.cache.get(serverId);
+                const channel = guild?.channels.cache.get(reactionRoleData.channelId);
+                const message = await channel?.messages.fetch(messageId).catch(() => null);
+        
+                if (!message) {
+                    return res.status(404).json({ error: 'Original message not found in Discord. Cannot edit.' });
+                }
+        
+                // Update Embed
+                const embed = {
+                    color: 0x7289da,
+                    title: title || 'Role Selection',
+                    description: description || 'React to get roles!',
+                    fields: [],
+                    footer: { text: maxRoles > 0 ? `Maximum ${maxRoles} role(s) allowed` : 'No role limit' },
+                    timestamp: new Date().toISOString()
+                };
+        
+                const emojiMap = {};
+                for (const roleData of roles) {
+                    const role = guild.roles.cache.get(roleData.roleId);
+                    if (role) {
+                        embed.fields.push({
+                            name: roleData.emoji,
+                            value: `${role.name}${roleData.description ? '\n' + roleData.description : ''}`,
+                            inline: true
+                        });
+                        emojiMap[roleData.emoji] = roleData.roleId;
+                    }
+                }
+                await message.edit({ embeds: [embed] });
+        
+                // Update stored data
+                reactionRoleData.title = title;
+                reactionRoleData.description = description;
+                reactionRoleData.roles = emojiMap;
+                reactionRoleData.maxRoles = maxRoles || 0;
+                reactionRoleData.removeOnUnreact = removeOnUnreact !== false;
+                
+                this.saveReactionRoles();
+        
+                res.json({ success: true, message: 'Reaction role message updated successfully' });
+            } catch (error) {
+                console.error('Error updating reaction role message:', error);
+                res.status(500).json({ error: 'Failed to update reaction role message' });
+            }
+        });
+
 
         // Create reaction role message (WITH DEBUG CODE)
         this.app.post('/api/plugins/autorole/reactionroles/:serverId/create', this.ensureAuthenticated, async (req, res) => {
@@ -240,7 +359,6 @@ class AutoRolePlugin {
                         });
                         emojiMap[roleData.emoji] = roleData.roleId;
                         
-                        // TEST EACH EMOJI
                         console.log(`🧪 [CREATE] Testing emoji for role ${role.name}:`);
                         this.testEmojiConsistency(roleData.emoji);
                     }
@@ -248,10 +366,8 @@ class AutoRolePlugin {
                 
                 console.log(`🎭 [CREATE] Final emoji map:`, emojiMap);
                 
-                // Send message
                 const message = await channel.send({ embeds: [embed] });
                 
-                // Add reactions
                 for (const emoji of Object.keys(emojiMap)) {
                     try {
                         await message.react(emoji);
@@ -261,7 +377,6 @@ class AutoRolePlugin {
                     }
                 }
                 
-                // Store reaction role data
                 if (!this.reactionRoles[serverId]) {
                     this.reactionRoles[serverId] = {};
                 }
@@ -279,7 +394,6 @@ class AutoRolePlugin {
                 
                 this.saveReactionRoles();
                 
-                // TEST THE SAVED DATA
                 console.log(`🧪 [CREATE] Testing saved data for message ${message.id}:`);
                 this.testReactionRoleData(serverId, message.id);
                 
@@ -307,7 +421,6 @@ class AutoRolePlugin {
                 if (this.reactionRoles[serverId] && this.reactionRoles[serverId][messageId]) {
                     const reactionRole = this.reactionRoles[serverId][messageId];
                     
-                    // Try to delete the message
                     try {
                         const guild = this.client.guilds.cache.get(serverId);
                         const channel = guild.channels.cache.get(reactionRole.channelId);
@@ -412,15 +525,13 @@ class AutoRolePlugin {
                 return;
             }
             
-            // Check if member is a bot and should be excluded
             if (member.user.bot && settings.joinRoles.excludeBots) {
                 return;
             }
             
-            // Check account age
             if (settings.joinRoles.minAccountAge > 0) {
                 const accountAge = Date.now() - member.user.createdTimestamp;
-                const minAge = settings.joinRoles.minAccountAge * 24 * 60 * 60 * 1000; // Convert days to ms
+                const minAge = settings.joinRoles.minAccountAge * 24 * 60 * 60 * 1000; 
                 
                 if (accountAge < minAge) {
                     console.log(`Member ${member.user.tag} account too new for auto-roles`);
@@ -438,7 +549,6 @@ class AutoRolePlugin {
                     if (rolesToAdd.length > 0) {
                         await member.roles.add(rolesToAdd, 'Auto-role on join');
                         
-                        // Log to channel if configured
                         await this.logAutoRole(member.guild, {
                             type: 'join_roles',
                             user: member.user,
@@ -451,9 +561,8 @@ class AutoRolePlugin {
                 }
             };
             
-            // Apply delay if configured
             if (settings.joinRoles.delay > 0) {
-                setTimeout(assignRoles, settings.joinRoles.delay * 60 * 1000); // Convert minutes to ms
+                setTimeout(assignRoles, settings.joinRoles.delay * 60 * 1000);
             } else {
                 await assignRoles();
             }
@@ -464,163 +573,72 @@ class AutoRolePlugin {
     }
 
     async handleReactionAdd(reaction, user) {
-        console.log(`🔍 [DEBUG] Reaction detected: ${reaction.emoji.name || reaction.emoji.toString()} by ${user.tag}`);
-        
         try {
-            // Ignore bot reactions
-            if (user.bot) {
-                console.log('❌ [DEBUG] Ignoring bot reaction');
-                return;
-            }
-            
-            console.log('✅ [DEBUG] User reaction detected, proceeding...');
-            
-            // Handle partial reactions
+            if (user.bot) return;
+
             if (reaction.partial) {
-                console.log('📥 [DEBUG] Fetching partial reaction...');
                 try {
                     await reaction.fetch();
-                    console.log('✅ [DEBUG] Partial reaction fetched successfully');
                 } catch (error) {
-                    console.error('❌ [DEBUG] Failed to fetch reaction:', error);
+                    console.error('Failed to fetch reaction:', error);
                     return;
                 }
             }
-            
+
             const guildId = reaction.message.guild.id;
             const messageId = reaction.message.id;
-            
-            console.log(`🏠 [DEBUG] Guild: ${guildId}, Message: ${messageId}`);
-            
-            // Debug: Show all reaction role data
-            console.log(`📊 [DEBUG] All reaction roles for guild:`, this.reactionRoles[guildId]);
-            
-            // Check if this is a reaction role message
             const reactionRoleData = this.reactionRoles[guildId]?.[messageId];
-            if (!reactionRoleData) {
-                console.log('❌ [DEBUG] No reaction role data found for this message');
-                console.log(`💡 [DEBUG] Available messages in guild:`, Object.keys(this.reactionRoles[guildId] || {}));
-                return;
-            }
-            
-            console.log(`✅ [DEBUG] Found reaction role data:`, reactionRoleData);
-            
+            if (!reactionRoleData) return;
+
             const emoji = reaction.emoji.name || reaction.emoji.toString();
-            console.log(`🎭 [DEBUG] Processing emoji: "${emoji}"`);
-            console.log(`🗂️ [DEBUG] Available emoji mappings:`, Object.keys(reactionRoleData.roles));
-            
             const roleId = reactionRoleData.roles[emoji];
-            
-            console.log(`🔗 [DEBUG] Emoji: "${emoji}" → Role ID: ${roleId}`);
-            
-            if (!roleId) {
-                console.log('❌ [DEBUG] No role mapped to this emoji');
-                console.log(`💡 [DEBUG] Expected one of: ${Object.keys(reactionRoleData.roles).join(', ')}`);
-                return;
-            }
-            
-            const member = reaction.message.guild.members.cache.get(user.id);
-            if (!member) {
-                console.log('❌ [DEBUG] Member not found in guild cache');
-                try {
-                    const fetchedMember = await reaction.message.guild.members.fetch(user.id);
-                    console.log('✅ [DEBUG] Member fetched successfully');
-                } catch (error) {
-                    console.error('❌ [DEBUG] Failed to fetch member:', error);
-                    return;
-                }
-                return;
-            }
-            
-            console.log(`👤 [DEBUG] Member found: ${member.user.tag}`);
-            
+            if (!roleId) return;
+
+            const member = await reaction.message.guild.members.fetch(user.id).catch(() => null);
+            if (!member) return;
+
             const role = reaction.message.guild.roles.cache.get(roleId);
-            if (!role) {
-                console.log(`❌ [DEBUG] Role not found: ${roleId}`);
-                return;
-            }
-            
-            console.log(`🎭 [DEBUG] Role found: ${role.name}`);
-            
-            // Check if member already has the role
-            if (member.roles.cache.has(roleId)) {
-                console.log('⚠️ [DEBUG] Member already has this role');
-                return;
-            }
-            
-            // Check max roles limit
+            if (!role) return;
+
+            if (member.roles.cache.has(roleId)) return;
+
             if (reactionRoleData.maxRoles > 0) {
                 const currentReactionRoles = Object.values(reactionRoleData.roles);
-                const memberReactionRoles = member.roles.cache.filter(role => 
-                    currentReactionRoles.includes(role.id)
-                );
-                
-                console.log(`📊 [DEBUG] Max roles: ${reactionRoleData.maxRoles}, Current: ${memberReactionRoles.size}`);
-                
+                const memberReactionRoles = member.roles.cache.filter(r => currentReactionRoles.includes(r.id));
+
                 if (memberReactionRoles.size >= reactionRoleData.maxRoles) {
-                    console.log('❌ [DEBUG] Max roles limit reached');
-                    // Remove user's reaction
-                    try {
+                    if (reactionRoleData.maxRoles === 1) {
+                        const rolesToRemove = memberReactionRoles.map(r => r.id);
+                        await member.roles.remove(rolesToRemove, 'Reaction role swap');
+                    } else {
                         await reaction.users.remove(user.id);
-                        console.log('✅ [DEBUG] Removed user reaction due to limit');
-                    } catch (error) {
-                        console.error('❌ [DEBUG] Could not remove reaction:', error);
-                    }
-                    
-                    // Send temporary message
-                    try {
                         const msg = await reaction.message.channel.send(
                             `${user}, you can only have ${reactionRoleData.maxRoles} role(s) from this message.`
                         );
                         setTimeout(() => msg.delete().catch(() => {}), 5000);
-                        console.log('✅ [DEBUG] Sent max roles warning message');
-                    } catch (error) {
-                        console.error('❌ [DEBUG] Could not send max roles message:', error);
+                        return;
                     }
-                    
-                    return;
                 }
             }
-            
-            // Add the role
-            try {
-                console.log(`🚀 [DEBUG] Attempting to add role "${role.name}" to ${member.user.tag}`);
-                await member.roles.add(roleId, 'Reaction role');
-                console.log(`✅ [DEBUG] Successfully added role "${role.name}" to ${member.user.tag}`);
-                
-                // Log the role assignment
-                await this.logAutoRole(reaction.message.guild, {
-                    type: 'reaction_role_add',
-                    user: user,
-                    roles: [role],
-                    reason: `Reacted with ${emoji}`,
-                    messageId: messageId
-                });
-                
-                console.log('✅ [DEBUG] Logged role assignment');
-                
-            } catch (error) {
-                console.error(`❌ [DEBUG] Error adding reaction role to ${user.tag}:`, error);
-                
-                // Check if it's a permissions error
-                if (error.code === 50013) {
-                    console.error('❌ [DEBUG] Missing permissions to manage roles');
-                } else if (error.code === 50028) {
-                    console.error('❌ [DEBUG] Invalid role or role hierarchy issue');
-                }
-            }
-            
+
+            await member.roles.add(roleId, 'Reaction role');
+            await this.logAutoRole(reaction.message.guild, {
+                type: 'reaction_role_add',
+                user: user,
+                roles: [role],
+                reason: `Reacted with ${emoji}`,
+                messageId: messageId
+            });
+
         } catch (error) {
-            console.error('❌ [DEBUG] Error handling reaction add:', error);
+            console.error('Error handling reaction add:', error);
         }
     }
 
     async handleReactionRemove(reaction, user) {
         try {
-            // Ignore bot reactions
             if (user.bot) return;
             
-            // Handle partial reactions
             if (reaction.partial) {
                 try {
                     await reaction.fetch();
@@ -633,7 +651,6 @@ class AutoRolePlugin {
             const guildId = reaction.message.guild.id;
             const messageId = reaction.message.id;
             
-            // Check if this is a reaction role message
             const reactionRoleData = this.reactionRoles[guildId]?.[messageId];
             if (!reactionRoleData || !reactionRoleData.removeOnUnreact) return;
             
@@ -642,36 +659,25 @@ class AutoRolePlugin {
             
             if (!roleId) return;
             
-            const member = reaction.message.guild.members.cache.get(user.id);
+            const member = await reaction.message.guild.members.fetch(user.id).catch(() => null);
             if (!member) return;
             
             const role = reaction.message.guild.roles.cache.get(roleId);
             if (!role) return;
             
-            // Check if member has the role
-            if (!member.roles.cache.has(roleId)) {
-                return;
-            }
+            if (!member.roles.cache.has(roleId)) return;
             
-            // Remove the role
-            try {
-                await member.roles.remove(roleId, 'Reaction role removed');
+            await member.roles.remove(roleId, 'Reaction role removed');
+            await this.logAutoRole(reaction.message.guild, {
+                type: 'reaction_role_remove',
+                user: user,
+                roles: [role],
+                reason: `Removed reaction ${emoji}`,
+                messageId: messageId
+            });
                 
-                // Log the role removal
-                await this.logAutoRole(reaction.message.guild, {
-                    type: 'reaction_role_remove',
-                    user: user,
-                    roles: [role],
-                    reason: `Removed reaction ${emoji}`,
-                    messageId: messageId
-                });
-                
-            } catch (error) {
-                console.error(`Error removing reaction role from ${user.tag}:`, error);
-            }
-            
         } catch (error) {
-            console.error('Error handling reaction remove:', error);
+            console.error(`Error removing reaction role from ${user.tag}:`, error);
         }
     }
 
@@ -688,27 +694,23 @@ class AutoRolePlugin {
             const member = guild.members.cache.get(userId);
             if (!member) return;
             
-            // Find roles that should be assigned for this level
             const rolesToAdd = settings.roles.filter(levelRole => 
                 levelRole.level === newLevel && 
                 !member.roles.cache.has(levelRole.roleId)
             );
             
-            // Find roles that should be removed (if user leveled past them and removeOldRoles is true)
             const rolesToRemove = settings.roles.filter(levelRole => 
                 levelRole.level < newLevel && 
                 levelRole.removeOldRoles &&
                 member.roles.cache.has(levelRole.roleId)
             );
             
-            // Add new roles
             for (const levelRole of rolesToAdd) {
                 const role = guild.roles.cache.get(levelRole.roleId);
                 if (role) {
                     try {
                         await member.roles.add(levelRole.roleId, `Level ${newLevel} role`);
                         
-                        // Log the role assignment
                         await this.logAutoRole(guild, {
                             type: 'level_role_add',
                             user: member.user,
@@ -722,14 +724,12 @@ class AutoRolePlugin {
                 }
             }
             
-            // Remove old roles
             for (const levelRole of rolesToRemove) {
                 const role = guild.roles.cache.get(levelRole.roleId);
                 if (role) {
                     try {
                         await member.roles.remove(levelRole.roleId, `Level ${newLevel} role upgrade`);
                         
-                        // Log the role removal
                         await this.logAutoRole(guild, {
                             type: 'level_role_remove',
                             user: member.user,
@@ -760,7 +760,6 @@ class AutoRolePlugin {
                 return { success: false, message: 'Guild not found' };
             }
             
-            // Load leveling data
             const levelingDataPath = './data/levelingData.json';
             if (!fs.existsSync(levelingDataPath)) {
                 return { success: false, message: 'Leveling data not found' };
@@ -771,7 +770,6 @@ class AutoRolePlugin {
             let syncCount = 0;
             let errorCount = 0;
             
-            // Process each user in the guild who has leveling data
             for (const [userId, guilds] of Object.entries(levelingData.users || {})) {
                 if (!guilds[guildId]) continue;
                 
@@ -781,12 +779,10 @@ class AutoRolePlugin {
                 if (!member) continue;
                 
                 try {
-                    // Find roles that should be assigned for this user's level
                     const shouldHaveRoles = settings.roles.filter(levelRole => 
                         levelRole.level <= userLevel
                     );
                     
-                    // Sort by level descending to handle removeOldRoles properly
                     shouldHaveRoles.sort((a, b) => b.level - a.level);
                     
                     const rolesToAdd = [];
@@ -798,18 +794,15 @@ class AutoRolePlugin {
                         
                         if (!role) continue;
                         
-                        // If this is the highest level role they should have, add it
                         if (levelRole.level === Math.max(...shouldHaveRoles.map(r => r.level))) {
                             if (!hasRole) {
                                 rolesToAdd.push(levelRole.roleId);
                             }
                         } else if (levelRole.removeOldRoles && hasRole) {
-                            // Remove lower level roles if removeOldRoles is true
                             rolesToRemove.push(levelRole.roleId);
                         }
                     }
                     
-                    // Apply role changes
                     if (rolesToAdd.length > 0) {
                         await member.roles.add(rolesToAdd, 'Level role sync');
                     }
@@ -919,7 +912,6 @@ class AutoRolePlugin {
     testReactionRoleData(guildId, messageId) {
         console.log('🧪 [TEST] Testing reaction role data...');
         
-        // Check if data exists
         const guildData = this.reactionRoles[guildId];
         console.log(`📊 [TEST] Guild data exists: ${!!guildData}`);
         
@@ -940,7 +932,6 @@ class AutoRolePlugin {
             }
         }
         
-        // Check if file exists
         const filePath = './data/reactionRoles.json';
         console.log(`💾 [TEST] File exists: ${fs.existsSync(filePath)}`);
         
@@ -963,19 +954,16 @@ class AutoRolePlugin {
     }
 	getFrontendComponent() {
         return {
-            // Plugin identification
             id: 'auto-role-plugin',
             name: 'Auto-Role System',
             description: 'Manage automatic role assignment, reaction roles, and level-based roles',
             icon: '🎭',
             version: '1.0.0',
             
-            // NEW: Plugin defines its own targets (no more dashboard hardcoding!)
-            containerId: 'autoRolePluginContainer',   // Where to inject HTML
-            pageId: 'auto-role',                      // Page ID for navigation
-            navIcon: '🎭',                           // Icon for navigation
+            containerId: 'autoRolePluginContainer',
+            pageId: 'auto-role',
+            navIcon: '🎭',
             
-            // Complete HTML from the working plugin
             html: `
                 <div class="plugin-container">
                     <div class="plugin-header">
@@ -1101,12 +1089,24 @@ class AutoRolePlugin {
                             <span class="btn-loader" style="display: none;">Saving...</span>
                         </button>
                     </div>
+
+                    <div class="settings-section" id="data-management-section" style="display: none; margin-top: 1rem;">
+                        <h3>💾 Data Management</h3>
+                        <div style="display: flex; gap: 10px;">
+                            <button id="download-autorole-settings" class="btn-secondary">
+                                <span class="btn-text">Download Settings</span>
+                            </button>
+                        </div>
+                        <small style="opacity: 0.7; display: block; margin-top: 4px;">
+                            Download all settings for this plugin as a JSON backup file.
+                        </small>
+                    </div>
                 </div>
 
                 <!-- Level Role Modal -->
                 <div id="level-role-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center;">
                     <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); border-radius: 15px; padding: 2rem; max-width: 500px; width: 90%; border: 1px solid rgba(255,255,255,0.2);">
-                        <h3 style="margin-bottom: 1rem; color: white;">Add Level Role</h3>
+                        <h3 id="level-role-modal-title" style="margin-bottom: 1rem; color: white;">Add Level Role</h3>
                         
                         <div class="form-group">
                             <label for="level-role-level">Level:</label>
@@ -1139,7 +1139,7 @@ class AutoRolePlugin {
                 <!-- Reaction Role Modal -->
                 <div id="reaction-role-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center; overflow-y: auto;">
                     <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); border-radius: 15px; padding: 2rem; max-width: 700px; width: 90%; max-height: 90vh; overflow-y: auto; border: 1px solid rgba(255,255,255,0.2); margin: 20px;">
-                        <h3 style="margin-bottom: 1rem; color: white;">Create Reaction Role Message</h3>
+                        <h3 id="reaction-role-modal-title" style="margin-bottom: 1rem; color: white;">Create Reaction Role Message</h3>
                         
                         <div class="form-group">
                             <label for="rr-channel">Channel:</label>
@@ -1192,7 +1192,7 @@ class AutoRolePlugin {
                         </div>
                         
                         <div style="display: flex; gap: 10px; margin-top: 1.5rem;">
-                            <button type="button" id="create-rr-message" class="btn-primary">Create Message</button>
+                            <button type="button" id="submit-rr-message" class="btn-primary">Create Message</button>
                             <button type="button" id="cancel-rr-message" class="glass-btn">Cancel</button>
                         </div>
                     </div>
@@ -1207,6 +1207,8 @@ class AutoRolePlugin {
                     let serverRoles = [];
                     let levelRoles = [];
                     let reactionRoleRoles = [];
+                    let editingLevelRoleIndex = null;
+                    let editingReactionRoleId = null;
 
                     // Initialize the plugin
                     async function initializeAutoRolePlugin() {
@@ -1220,13 +1222,11 @@ class AutoRolePlugin {
                             serverSelect.addEventListener('change', handleServerChange);
                         }
 
-                        // Join roles
                         const joinRolesEnabled = document.getElementById('join-roles-enabled');
                         if (joinRolesEnabled) {
                             joinRolesEnabled.addEventListener('change', toggleJoinRolesConfig);
                         }
 
-                        // Level roles
                         const levelRolesEnabled = document.getElementById('level-roles-enabled');
                         if (levelRolesEnabled) {
                             levelRolesEnabled.addEventListener('change', toggleLevelRolesConfig);
@@ -1234,7 +1234,7 @@ class AutoRolePlugin {
 
                         const addLevelRoleBtn = document.getElementById('add-level-role-btn');
                         if (addLevelRoleBtn) {
-                            addLevelRoleBtn.addEventListener('click', openLevelRoleModal);
+                            addLevelRoleBtn.addEventListener('click', () => openLevelRoleModal());
                         }
 
                         const syncLevelRolesBtn = document.getElementById('sync-level-roles-btn');
@@ -1242,16 +1242,19 @@ class AutoRolePlugin {
                             syncLevelRolesBtn.addEventListener('click', syncLevelRoles);
                         }
 
-                        // Reaction roles
                         const createReactionRoleBtn = document.getElementById('create-reaction-role-btn');
                         if (createReactionRoleBtn) {
-                            createReactionRoleBtn.addEventListener('click', openReactionRoleModal);
+                            createReactionRoleBtn.addEventListener('click', () => openReactionRoleModal());
                         }
 
-                        // Save button
                         const saveBtn = document.getElementById('save-autorole-settings');
                         if (saveBtn) {
                             saveBtn.addEventListener('click', saveAutoRoleSettings);
+                        }
+
+                        const downloadBtn = document.getElementById('download-autorole-settings');
+                        if (downloadBtn) {
+                            downloadBtn.addEventListener('click', downloadAutoRoleSettings);
                         }
 
                         // Modal event listeners
@@ -1259,7 +1262,6 @@ class AutoRolePlugin {
                     }
 
                     function setupModalEventListeners() {
-                        // Level role modal
                         const saveLevelRole = document.getElementById('save-level-role');
                         if (saveLevelRole) {
                             saveLevelRole.addEventListener('click', saveLevelRole_handler);
@@ -1270,15 +1272,14 @@ class AutoRolePlugin {
                             cancelLevelRole.addEventListener('click', closeLevelRoleModal);
                         }
 
-                        // Reaction role modal
                         const addRRRole = document.getElementById('add-rr-role');
                         if (addRRRole) {
                             addRRRole.addEventListener('click', addReactionRoleRole);
                         }
-
-                        const createRRMessage = document.getElementById('create-rr-message');
-                        if (createRRMessage) {
-                            createRRMessage.addEventListener('click', createReactionRoleMessage);
+                        
+                        const submitRRMessage = document.getElementById('submit-rr-message');
+                        if (submitRRMessage) {
+                            submitRRMessage.addEventListener('click', submitReactionRoleMessage);
                         }
 
                         const cancelRRMessage = document.getElementById('cancel-rr-message');
@@ -1286,7 +1287,6 @@ class AutoRolePlugin {
                             cancelRRMessage.addEventListener('click', closeReactionRoleModal);
                         }
 
-                        // Close modals when clicking outside
                         const levelRoleModal = document.getElementById('level-role-modal');
                         if (levelRoleModal) {
                             levelRoleModal.addEventListener('click', function(e) {
@@ -1349,7 +1349,8 @@ class AutoRolePlugin {
                             'level-roles-section', 
                             'reaction-roles-section',
                             'log-channel-section',
-                            'save-section'
+                            'save-section',
+                            'data-management-section'
                         ];
                         
                         sections.forEach(sectionId => {
@@ -1364,7 +1365,8 @@ class AutoRolePlugin {
                             'level-roles-section',
                             'reaction-roles-section', 
                             'log-channel-section',
-                            'save-section'
+                            'save-section',
+                            'data-management-section'
                         ];
                         
                         sections.forEach(sectionId => {
@@ -1439,7 +1441,6 @@ class AutoRolePlugin {
                             const response = await fetch(\`/api/plugins/autorole/settings/\${currentGuildId}\`);
                             const settings = await response.json();
                             
-                            // Join roles
                             const joinRolesEnabled = document.getElementById('join-roles-enabled');
                             if (joinRolesEnabled) {
                                 joinRolesEnabled.checked = settings.joinRoles?.enabled || false;
@@ -1468,7 +1469,6 @@ class AutoRolePlugin {
                                 joinRolesMinAge.value = settings.joinRoles?.minAccountAge || 0;
                             }
                             
-                            // Log channel
                             const logChannelSelect = document.getElementById('log-channel-select');
                             if (logChannelSelect) {
                                 logChannelSelect.value = settings.logChannelId || '';
@@ -1524,11 +1524,18 @@ class AutoRolePlugin {
                                             \${levelRole.removeOldRoles ? 'Removes lower level roles' : 'Keeps lower level roles'}
                                         </div>
                                     </div>
-                                    <button type="button" onclick="window.removeLevelRole(\${index})" class="glass-btn-small">Remove</button>
+                                    <div>
+                                        <button type="button" onclick="window.editLevelRole(\${index})" class="glass-btn-small" style="margin-right: 8px;">Edit</button>
+                                        <button type="button" onclick="window.removeLevelRole(\${index})" class="glass-btn-small">Remove</button>
+                                    </div>
                                 \`;
                                 list.appendChild(roleElement);
                             });
                     }
+
+                    window.editLevelRole = function(index) {
+                        openLevelRoleModal(index);
+                    };
 
                     window.removeLevelRole = function(index) {
                         if (confirm('Remove this level role?')) {
@@ -1577,11 +1584,18 @@ class AutoRolePlugin {
                                         Max roles: \${message.maxRoles || 'Unlimited'} • Remove on unreact: \${message.removeOnUnreact ? 'Yes' : 'No'}
                                     </div>
                                 </div>
-                                <button type="button" onclick="window.deleteReactionRole('\${message.messageId}')" class="glass-btn-small">Delete</button>
+                                <div>
+                                    <button type="button" onclick="window.editReactionRole('\${message.messageId}')" class="glass-btn-small" style="margin-right: 8px;">Edit</button>
+                                    <button type="button" onclick="window.deleteReactionRole('\${message.messageId}')" class="glass-btn-small">Delete</button>
+                                </div>
                             \`;
                             list.appendChild(messageElement);
                         });
                     }
+                    
+                    window.editReactionRole = function(messageId) {
+                        openReactionRoleModal(messageId);
+                    };
 
                     window.deleteReactionRole = async function(messageId) {
                         if (!confirm('Delete this reaction role message? This cannot be undone.')) return;
@@ -1625,20 +1639,32 @@ class AutoRolePlugin {
                         }
                     }
 
-                    function openLevelRoleModal() {
+                    function openLevelRoleModal(index = null) {
                         const modal = document.getElementById('level-role-modal');
-                        if (modal) {
-                            // Reset form
-                            const levelInput = document.getElementById('level-role-level');
-                            const roleSelect = document.getElementById('level-role-role');
-                            const removeOldCheckbox = document.getElementById('level-role-remove-old');
-                            
-                            if (levelInput) levelInput.value = '';
-                            if (roleSelect) roleSelect.value = '';
-                            if (removeOldCheckbox) removeOldCheckbox.checked = false;
-                            
-                            modal.style.display = 'flex';
+                        const title = document.getElementById('level-role-modal-title');
+                        const saveBtn = document.getElementById('save-level-role');
+                        const levelInput = document.getElementById('level-role-level');
+                        const roleSelect = document.getElementById('level-role-role');
+                        const removeOldCheckbox = document.getElementById('level-role-remove-old');
+                        
+                        editingLevelRoleIndex = index;
+                        
+                        if (index !== null && levelRoles[index]) {
+                            const role = levelRoles[index];
+                            title.textContent = 'Edit Level Role';
+                            saveBtn.textContent = 'Save Changes';
+                            levelInput.value = role.level;
+                            roleSelect.value = role.roleId;
+                            removeOldCheckbox.checked = role.removeOldRoles;
+                        } else {
+                            title.textContent = 'Add Level Role';
+                            saveBtn.textContent = 'Add Role';
+                            levelInput.value = '';
+                            roleSelect.value = '';
+                            removeOldCheckbox.checked = false;
                         }
+                        
+                        modal.style.display = 'flex';
                     }
 
                     function closeLevelRoleModal() {
@@ -1658,78 +1684,88 @@ class AutoRolePlugin {
                         const removeOldRoles = removeOldCheckbox ? removeOldCheckbox.checked : false;
                         
                         if (!level || level < 1) {
-                            if (window.showNotification) {
-                                window.showNotification('Please enter a valid level', 'error');
-                            }
+                            if (window.showNotification) window.showNotification('Please enter a valid level', 'error');
                             return;
                         }
                         
                         if (!roleId) {
-                            if (window.showNotification) {
-                                window.showNotification('Please select a role', 'error');
-                            }
+                            if (window.showNotification) window.showNotification('Please select a role', 'error');
                             return;
                         }
                         
-                        // Check if level already exists
-                        if (levelRoles.some(lr => lr.level === level)) {
-                            if (window.showNotification) {
-                                window.showNotification('A role is already configured for this level', 'error');
-                            }
-                            return;
-                        }
+                        const newLevelRole = { level, roleId, removeOldRoles };
                         
-                        // Check if role is already used
-                        if (levelRoles.some(lr => lr.roleId === roleId)) {
-                            if (window.showNotification) {
-                                window.showNotification('This role is already used for another level', 'error');
+                        if (editingLevelRoleIndex !== null) {
+                            levelRoles[editingLevelRoleIndex] = newLevelRole;
+                        } else {
+                            if (levelRoles.some(lr => lr.level === level)) {
+                                if (window.showNotification) window.showNotification('A role is already configured for this level', 'error');
+                                return;
                             }
-                            return;
+                            if (levelRoles.some(lr => lr.roleId === roleId)) {
+                                if (window.showNotification) window.showNotification('This role is already used for another level', 'error');
+                                return;
+                            }
+                            levelRoles.push(newLevelRole);
                         }
-                        
-                        levelRoles.push({
-                            level: level,
-                            roleId: roleId,
-                            removeOldRoles: removeOldRoles
-                        });
                         
                         displayLevelRoles();
                         closeLevelRoleModal();
-                        if (window.showNotification) {
-                            window.showNotification('Level role added successfully', 'success');
-                        }
+                        if (window.showNotification) window.showNotification('Level role saved successfully', 'success');
                     }
 
-                    function openReactionRoleModal() {
+                    async function openReactionRoleModal(messageId = null) {
                         const modal = document.getElementById('reaction-role-modal');
-                        if (modal) {
-                            // Reset form
-                            const inputs = [
-                                'rr-channel',
-                                'rr-title', 
-                                'rr-description',
-                                'rr-max-roles',
-                                'rr-emoji',
-                                'rr-role',
-                                'rr-role-description'
-                            ];
+                        const title = document.getElementById('reaction-role-modal-title');
+                        const submitBtn = document.getElementById('submit-rr-message');
+                        
+                        editingReactionRoleId = messageId;
+                        
+                        // Reset form
+                        document.getElementById('rr-channel').value = '';
+                        document.getElementById('rr-title').value = '';
+                        document.getElementById('rr-description').value = '';
+                        document.getElementById('rr-max-roles').value = 0;
+                        document.getElementById('rr-remove-on-unreact').checked = true;
+                        reactionRoleRoles = [];
+                        displayReactionRoleRoles();
+                        
+                        if (messageId) {
+                            title.textContent = 'Edit Reaction Role';
+                            submitBtn.textContent = 'Save Changes';
+                            document.getElementById('rr-channel').disabled = true;
                             
-                            inputs.forEach(inputId => {
-                                const input = document.getElementById(inputId);
-                                if (input) {
-                                    if (input.type === 'checkbox') {
-                                        input.checked = inputId === 'rr-remove-on-unreact';
-                                    } else {
-                                        input.value = '';
-                                    }
+                            try {
+                                const response = await fetch(\`/api/plugins/autorole/reactionroles/\${currentGuildId}/\${messageId}\`);
+                                const data = await response.json();
+                                
+                                if (response.ok) {
+                                    document.getElementById('rr-channel').value = data.channelId;
+                                    document.getElementById('rr-title').value = data.title || '';
+                                    document.getElementById('rr-description').value = data.description || '';
+                                    document.getElementById('rr-max-roles').value = data.maxRoles || 0;
+                                    document.getElementById('rr-remove-on-unreact').checked = data.removeOnUnreact;
+                                    
+                                    reactionRoleRoles = Object.entries(data.roles).map(([emoji, roleId]) => {
+                                        const role = serverRoles.find(r => r.id === roleId);
+                                        return { emoji, roleId, roleName: role ? role.name : 'Unknown Role', description: '' };
+                                    });
+                                    displayReactionRoleRoles();
+                                } else {
+                                    if (window.showNotification) window.showNotification(data.error, 'error');
+                                    return;
                                 }
-                            });
-                            
-                            reactionRoleRoles = [];
-                            displayReactionRoleRoles();
-                            
-                            modal.style.display = 'flex';
+                            } catch (error) {
+                                if (window.showNotification) window.showNotification('Failed to load reaction role data', 'error');
+                                return;
+                            }
+                        } else {
+                            title.textContent = 'Create Reaction Role';
+                            submitBtn.textContent = 'Create Message';
+                            document.getElementById('rr-channel').disabled = false;
                         }
+                        
+                        modal.style.display = 'flex';
                     }
 
                     function closeReactionRoleModal() {
@@ -1749,39 +1785,28 @@ class AutoRolePlugin {
                         const description = descriptionInput ? descriptionInput.value.trim() : '';
                         
                         if (!emoji) {
-                            if (window.showNotification) {
-                                window.showNotification('Please enter an emoji', 'error');
-                            }
+                            if (window.showNotification) window.showNotification('Please enter an emoji', 'error');
                             return;
                         }
                         
                         if (!roleId) {
-                            if (window.showNotification) {
-                                window.showNotification('Please select a role', 'error');
-                            }
+                            if (window.showNotification) window.showNotification('Please select a role', 'error');
                             return;
                         }
                         
-                        // Check if emoji or role already used
                         if (reactionRoleRoles.some(rr => rr.emoji === emoji)) {
-                            if (window.showNotification) {
-                                window.showNotification('This emoji is already used', 'error');
-                            }
+                            if (window.showNotification) window.showNotification('This emoji is already used', 'error');
                             return;
                         }
                         
                         if (reactionRoleRoles.some(rr => rr.roleId === roleId)) {
-                            if (window.showNotification) {
-                                window.showNotification('This role is already used', 'error');
-                            }
+                            if (window.showNotification) window.showNotification('This role is already used', 'error');
                             return;
                         }
                         
                         const role = serverRoles.find(r => r.id === roleId);
                         if (!role) {
-                            if (window.showNotification) {
-                                window.showNotification('Role not found', 'error');
-                            }
+                            if (window.showNotification) window.showNotification('Role not found', 'error');
                             return;
                         }
                         
@@ -1792,15 +1817,12 @@ class AutoRolePlugin {
                             description: description
                         });
                         
-                        // Clear inputs
                         if (emojiInput) emojiInput.value = '';
                         if (roleSelect) roleSelect.value = '';
                         if (descriptionInput) descriptionInput.value = '';
                         
                         displayReactionRoleRoles();
-                        if (window.showNotification) {
-                            window.showNotification('Role added to message', 'success');
-                        }
+                        if (window.showNotification) window.showNotification('Role added to message', 'success');
                     }
 
                     function displayReactionRoleRoles() {
@@ -1837,77 +1859,57 @@ class AutoRolePlugin {
                         displayReactionRoleRoles();
                     };
 
-                    async function createReactionRoleMessage() {
-                        const channelSelect = document.getElementById('rr-channel');
-                        const titleInput = document.getElementById('rr-title');
-                        const descriptionInput = document.getElementById('rr-description');
-                        const maxRolesInput = document.getElementById('rr-max-roles');
-                        const removeOnUnreactInput = document.getElementById('rr-remove-on-unreact');
+                    async function submitReactionRoleMessage() {
+                        const channelId = document.getElementById('rr-channel').value;
+                        const title = document.getElementById('rr-title').value.trim();
+                        const description = document.getElementById('rr-description').value.trim();
+                        const maxRoles = parseInt(document.getElementById('rr-max-roles').value);
+                        const removeOnUnreact = document.getElementById('rr-remove-on-unreact').checked;
                         
-                        const channelId = channelSelect ? channelSelect.value : '';
-                        const title = titleInput ? titleInput.value.trim() : '';
-                        const description = descriptionInput ? descriptionInput.value.trim() : '';
-                        const maxRoles = maxRolesInput ? parseInt(maxRolesInput.value) : 0;
-                        const removeOnUnreact = removeOnUnreactInput ? removeOnUnreactInput.checked : true;
-                        
-                        if (!channelId) {
-                            if (window.showNotification) {
-                                window.showNotification('Please select a channel', 'error');
-                            }
+                        if (!channelId && !editingReactionRoleId) {
+                            if (window.showNotification) window.showNotification('Please select a channel', 'error');
                             return;
                         }
                         
                         if (reactionRoleRoles.length === 0) {
-                            if (window.showNotification) {
-                                window.showNotification('Please add at least one role', 'error');
-                            }
+                            if (window.showNotification) window.showNotification('Please add at least one role', 'error');
                             return;
                         }
                         
+                        const submitBtn = document.getElementById('submit-rr-message');
+                        const originalBtnText = submitBtn.textContent;
+                        
                         try {
-                            const createBtn = document.getElementById('create-rr-message');
-                            if (createBtn) {
-                                createBtn.disabled = true;
-                                createBtn.textContent = 'Creating...';
-                            }
+                            submitBtn.disabled = true;
+                            submitBtn.textContent = 'Saving...';
                             
-                            const response = await fetch(\`/api/plugins/autorole/reactionroles/\${currentGuildId}/create\`, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json'
-                                },
-                                body: JSON.stringify({
-                                    channelId: channelId,
-                                    title: title,
-                                    description: description,
-                                    roles: reactionRoleRoles,
-                                    maxRoles: maxRoles,
-                                    removeOnUnreact: removeOnUnreact
-                                })
+                            const payload = { title, description, roles: reactionRoleRoles, maxRoles, removeOnUnreact, channelId };
+                            const url = editingReactionRoleId 
+                                ? \`/api/plugins/autorole/reactionroles/\${currentGuildId}/\${editingReactionRoleId}\`
+                                : \`/api/plugins/autorole/reactionroles/\${currentGuildId}/create\`;
+                            const method = editingReactionRoleId ? 'PUT' : 'POST';
+
+                            const response = await fetch(url, {
+                                method: method,
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(payload)
                             });
                             
                             const result = await response.json();
                             
                             if (response.ok) {
-                                if (window.showNotification) {
-                                    window.showNotification('Reaction role message created successfully!', 'success');
-                                }
+                                if (window.showNotification) window.showNotification(result.message, 'success');
                                 closeReactionRoleModal();
                                 await loadReactionRoles();
                             } else {
-                                throw new Error(result.error || 'Failed to create message');
+                                throw new Error(result.error || 'Failed to save reaction role');
                             }
                         } catch (error) {
-                            console.error('Error creating reaction role message:', error);
-                            if (window.showNotification) {
-                                window.showNotification(error.message, 'error');
-                            }
+                            console.error('Error saving reaction role:', error);
+                            if (window.showNotification) window.showNotification(error.message, 'error');
                         } finally {
-                            const createBtn = document.getElementById('create-rr-message');
-                            if (createBtn) {
-                                createBtn.disabled = false;
-                                createBtn.textContent = 'Create Message';
-                            }
+                            submitBtn.disabled = false;
+                            submitBtn.textContent = originalBtnText;
                         }
                     }
 
@@ -1963,7 +1965,6 @@ class AutoRolePlugin {
                             if (btnText) btnText.style.display = 'none';
                             if (btnLoader) btnLoader.style.display = 'inline';
                             
-                            // Collect join roles data
                             const joinRolesEnabled = document.getElementById('join-roles-enabled');
                             const joinRolesSelect = document.getElementById('join-roles-select');
                             const joinRolesDelay = document.getElementById('join-roles-delay');
@@ -1985,12 +1986,9 @@ class AutoRolePlugin {
                                 logChannelId: logChannelSelect ? logChannelSelect.value || null : null
                             };
                             
-                            // Save auto-role settings
                             const autoRoleResponse = await fetch(\`/api/plugins/autorole/settings/\${currentGuildId}\`, {
                                 method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json'
-                                },
+                                headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify(autoRoleSettings)
                             });
                             
@@ -1998,7 +1996,6 @@ class AutoRolePlugin {
                                 throw new Error('Failed to save auto-role settings');
                             }
                             
-                            // Save level roles
                             const levelRolesEnabled = document.getElementById('level-roles-enabled');
                             
                             const levelRoleSettings = {
@@ -2009,9 +2006,7 @@ class AutoRolePlugin {
                             
                             const levelRoleResponse = await fetch(\`/api/plugins/autorole/levelroles/\${currentGuildId}\`, {
                                 method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json'
-                                },
+                                headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify(levelRoleSettings)
                             });
                             
@@ -2039,7 +2034,16 @@ class AutoRolePlugin {
                         }
                     }
 
-                    // Initialize the plugin
+                    async function downloadAutoRoleSettings() {
+                        if (!currentGuildId) {
+                            if (window.showNotification) {
+                                window.showNotification('Please select a server first', 'error');
+                            }
+                            return;
+                        }
+                        window.location.href = \`/api/plugins/autorole/export/\${currentGuildId}\`;
+                    }
+
                     initializeAutoRolePlugin();
                 })();
             `

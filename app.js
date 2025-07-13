@@ -101,7 +101,8 @@ async function hasAdminPermissions(userId, guildId) {
             return true;
         }
         
-        const moderatorRoleId = '957213892810010645';
+        // --- MODIFICATION: Updated to the correct moderator role ID ---
+        const moderatorRoleId = '1392001716962197514'; 
         if (member.roles.cache.has(moderatorRoleId)) {
             return true;
         }
