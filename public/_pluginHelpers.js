@@ -1,39 +1,33 @@
-// Plugin Helper Functions for Fuji Fruit Bot
+// pluginHelpers.js - Plugin Helper Functions
+// Place this file in: public/pluginHelpers.js
+
+console.log('🔧 Loading Plugin Helper Functions...');
+
+// Global helper functions that plugins can use
 window.pluginHelpers = {
     // Load servers for any plugin
-    async loadServers(selectElementId, defaultOption = 'Select a server...') {
+    async loadServers(selectElementId) {
         try {
             const response = await fetch('/api/servers');
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
+            if (!response.ok) throw new Error('Failed to fetch servers');
             
             const servers = await response.json();
             const selectElement = document.getElementById(selectElementId);
             
             if (selectElement) {
-                selectElement.innerHTML = `<option value="">${defaultOption}</option>`;
+                selectElement.innerHTML = '<option value="">Select a server...</option>';
                 servers.forEach(server => {
                     const option = document.createElement('option');
                     option.value = server.id;
                     option.textContent = server.name;
                     selectElement.appendChild(option);
                 });
-                console.log(`✓ Loaded ${servers.length} servers for ${selectElementId}`);
-            } else {
-                console.warn(`⚠ Select element '${selectElementId}' not found`);
+                console.log(`✓ Loaded ${servers.length} servers into ${selectElementId}`);
             }
             
             return servers;
         } catch (error) {
-            console.error(`Error loading servers for ${selectElementId}:`, error);
-            
-            // Show error in select element
-            const selectElement = document.getElementById(selectElementId);
-            if (selectElement) {
-                selectElement.innerHTML = '<option value="">Error loading servers</option>';
-            }
-            
+            console.error('Error loading servers:', error);
             if (window.showNotification) {
                 window.showNotification('Failed to load servers', 'error');
             }
@@ -83,7 +77,9 @@ window.pluginHelpers = {
                     const option = document.createElement('option');
                     option.value = role.id;
                     option.textContent = role.name;
-                    option.style.color = role.color || '#ffffff';
+                    if (role.color) {
+                        option.style.color = role.color;
+                    }
                     selectElement.appendChild(option);
                 });
                 console.log(`✓ Loaded ${roles.length} roles into ${selectElementId}`);
@@ -96,44 +92,11 @@ window.pluginHelpers = {
         }
     },
 
-    // Get currently selected server ID
-    getCurrentServerId() {
-        // Try multiple common server select element IDs
-        const serverSelects = [
-            'global-server-select',
-            'autorole-server-select', 
-            'cleanup-server-select',
-            'rep-server-select',
-            'repServerSelect',
-            'event-server-select',
-            'command-server-select',
-            'linktracking-server-select',
-            'channelrules-server-select',
-            'genrediscovery-server-select',
-            'migration-server-select'
-        ];
-        
-        for (const selectId of serverSelects) {
-            const select = document.getElementById(selectId);
-            if (select && select.value) {
-                return select.value;
-            }
-        }
-        
-        return null;
-    },
-
-    // Generic function to load plugin data
-    async loadPluginData(pluginName, serverId, endpoint = 'settings') {
+    // Generic data loader for plugins
+    async loadPluginData(pluginName, serverId, endpoint) {
         try {
-            if (!serverId) {
-                throw new Error('No server ID provided');
-            }
-            
             const response = await fetch(`/api/plugins/${pluginName}/${endpoint}/${serverId}`);
-            if (!response.ok) {
-                throw new Error(`Failed to load ${pluginName} data`);
-            }
+            if (!response.ok) throw new Error(`Failed to fetch ${pluginName} data`);
             
             return await response.json();
         } catch (error) {
@@ -142,14 +105,10 @@ window.pluginHelpers = {
         }
     },
 
-    // Generic function to save plugin settings
-    async savePluginSettings(pluginName, serverId, settings, endpoint = 'settings') {
+    // Save plugin settings
+    async savePluginSettings(pluginName, serverId, settings) {
         try {
-            if (!serverId) {
-                throw new Error('No server ID provided');
-            }
-            
-            const response = await fetch(`/api/plugins/${pluginName}/${endpoint}/${serverId}`, {
+            const response = await fetch(`/api/plugins/${pluginName}/settings/${serverId}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -157,9 +116,7 @@ window.pluginHelpers = {
                 body: JSON.stringify(settings)
             });
             
-            if (!response.ok) {
-                throw new Error(`Failed to save ${pluginName} settings`);
-            }
+            if (!response.ok) throw new Error(`Failed to save ${pluginName} settings`);
             
             return await response.json();
         } catch (error) {
@@ -168,50 +125,32 @@ window.pluginHelpers = {
         }
     },
 
+    // Utility function to get current server from global dropdown
+    getCurrentServerId() {
+        const globalSelect = document.getElementById('globalServerSelect');
+        return globalSelect ? globalSelect.value : null;
+    },
+
     // Show loading state for an element
     showLoading(elementId) {
         const element = document.getElementById(elementId);
         if (element) {
             element.classList.add('loading');
-            if (element.tagName === 'BUTTON') {
-                element.disabled = true;
-                element.textContent = 'Loading...';
-            }
+            element.disabled = true;
         }
     },
 
-    // Hide loading state for an element  
-    hideLoading(elementId, originalText = null) {
+    // Hide loading state for an element
+    hideLoading(elementId) {
         const element = document.getElementById(elementId);
         if (element) {
             element.classList.remove('loading');
-            if (element.tagName === 'BUTTON') {
-                element.disabled = false;
-                if (originalText) {
-                    element.textContent = originalText;
-                }
-            }
-        }
-    },
-
-    // Safe element update with null checks
-    updateElement(elementId, content, property = 'textContent') {
-        const element = document.getElementById(elementId);
-        if (element) {
-            element[property] = content;
-        } else {
-            console.warn(`Element '${elementId}' not found for update`);
-        }
-    },
-
-    // Safe element display toggle
-    toggleDisplay(elementId, show) {
-        const element = document.getElementById(elementId);
-        if (element) {
-            element.style.display = show ? 'block' : 'none';
+            element.disabled = false;
         }
     }
 };
+
+// Specific helper functions for missing plugin functions
 
 // Auto Role Plugin helpers
 window.loadAutoRoleServers = async function() {
@@ -233,30 +172,34 @@ window.loadCleanupData = async function() {
         window.pluginHelpers.showLoading('cleanup-stats-container');
         
         // Load cleanup statistics
-        const stats = await window.pluginHelpers.loadPluginData('message-cleanup', serverId, 'stats');
+        const statsResponse = await fetch(`/api/plugins/message-cleanup/stats/${serverId}`);
+        const stats = await statsResponse.json();
         
-        // Update UI elements safely
-        window.pluginHelpers.updateElement('total-cleanups', stats.totalCleanups || '0');
-        window.pluginHelpers.updateElement('total-messages', stats.totalMessagesDeleted || stats.totalMessages || '0');
-        window.pluginHelpers.updateElement('active-moderators', stats.moderators || stats.activeModerators || '0');
+        // Update UI elements
+        const totalCleanupsEl = document.getElementById('total-cleanups');
+        const totalMessagesEl = document.getElementById('total-messages');
+        const activeModeratorsEl = document.getElementById('active-moderators');
+        
+        if (totalCleanupsEl) totalCleanupsEl.textContent = stats.totalCleanups || '0';
+        if (totalMessagesEl) totalMessagesEl.textContent = stats.totalMessages || '0';
+        if (activeModeratorsEl) activeModeratorsEl.textContent = stats.activeModerators || '0';
         
         // Load recent logs
-        const logsData = await window.pluginHelpers.loadPluginData('message-cleanup', serverId, 'logs');
+        const logsResponse = await fetch(`/api/plugins/message-cleanup/logs/${serverId}`);
+        const logsData = await logsResponse.json();
         
         const logList = document.getElementById('cleanup-log-list');
-        if (logList) {
-            if (logsData.logs && logsData.logs.length > 0) {
-                logList.innerHTML = logsData.logs.slice(-10).reverse().map(log => 
-                    `<div class="log-entry">
-                        <strong>Cleanup by ${escapeHtml(log.moderatorId || 'Unknown')}</strong><br>
-                        Channel: ${escapeHtml(log.channelId || 'Unknown')}<br>
-                        Reason: ${escapeHtml(log.reason || 'No reason provided')}<br>
-                        <small>${new Date(log.timestamp).toLocaleString()}</small>
-                    </div>`
-                ).join('');
-            } else {
-                logList.innerHTML = '<p>No cleanup logs found.</p>';
-            }
+        if (logList && logsData.logs && logsData.logs.length > 0) {
+            logList.innerHTML = logsData.logs.slice(-10).reverse().map(log => 
+                `<div class="log-entry">
+                    <strong>Cleanup by ${log.moderatorId || 'Unknown'}</strong><br>
+                    Channel: ${log.channelId || 'Unknown'}<br>
+                    Reason: ${log.reason || 'No reason provided'}<br>
+                    <small>${new Date(log.timestamp).toLocaleString()}</small>
+                </div>`
+            ).join('');
+        } else if (logList) {
+            logList.innerHTML = '<p>No cleanup logs found.</p>';
         }
         
     } catch (error) {
@@ -264,13 +207,12 @@ window.loadCleanupData = async function() {
         
         // Update UI to show error state
         ['total-cleanups', 'total-messages', 'active-moderators'].forEach(id => {
-            window.pluginHelpers.updateElement(id, 'Error');
+            const el = document.getElementById(id);
+            if (el) el.textContent = 'Error';
         });
         
         const logList = document.getElementById('cleanup-log-list');
-        if (logList) {
-            logList.innerHTML = '<p>Error loading logs.</p>';
-        }
+        if (logList) logList.innerHTML = '<p>Error loading logs.</p>';
         
         if (window.showNotification) {
             window.showNotification('Failed to load cleanup data', 'error');
@@ -281,16 +223,14 @@ window.loadCleanupData = async function() {
     }
 };
 
-// Escape HTML to prevent XSS
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
 // Reputation Plugin helpers
 window.loadReputationServers = async function() {
     return await window.pluginHelpers.loadServers('repServerSelect');
+};
+
+// Generic function to load plugin servers
+window.loadPluginServers = async function(selectElementId) {
+    return await window.pluginHelpers.loadServers(selectElementId);
 };
 
 // Event Manager Plugin helpers
@@ -323,30 +263,4 @@ window.loadMigrationServers = async function() {
     return await window.pluginHelpers.loadServers('migration-server-select');
 };
 
-// Global server dropdown setup
-window.setupGlobalServerDropdown = async function() {
-    try {
-        const globalSelect = document.getElementById('global-server-select');
-        if (globalSelect) {
-            await window.pluginHelpers.loadServers('global-server-select', 'All Servers');
-            
-            // Listen for changes to update other dropdowns
-            globalSelect.addEventListener('change', function() {
-                const selectedServerId = this.value;
-                
-                // Update other server dropdowns to match
-                const serverSelects = document.querySelectorAll('select[id$="-server-select"]');
-                serverSelects.forEach(select => {
-                    if (select !== globalSelect && select.querySelector(`option[value="${selectedServerId}"]`)) {
-                        select.value = selectedServerId;
-                        select.dispatchEvent(new Event('change'));
-                    }
-                });
-            });
-        }
-    } catch (error) {
-        console.error('Error setting up global server dropdown:', error);
-    }
-};
-
-console.log('✅ Compatible plugin helper functions loaded successfully');
+console.log('✅ Plugin helper functions loaded successfully');
