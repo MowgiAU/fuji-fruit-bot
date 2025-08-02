@@ -42,7 +42,7 @@ class LevelingPlugin {
         this.setupRoutes();
         this.setupBackupRoutes();
         this.setupDiscordListeners();
-        this.setupSlashCommands();
+
         
         // Start voice tracking interval
         setInterval(() => this.updateVoiceXP(), this.VOICE_UPDATE_INTERVAL);
@@ -872,70 +872,84 @@ class LevelingPlugin {
         });
     }
 
-    setupSlashCommands() {
-        this.client.once('ready', async () => {
-            try {
-                const commands = [
-                    {
-                        name: 'level',
-                        description: 'Check your or someone else\'s level and XP',
-                        options: [
-                            {
-                                name: 'user',
-                                description: 'The user to check (defaults to yourself)',
-                                type: 6, // USER type
-                                required: false
-                            }
-                        ]
-                    },
-                    {
-                        name: 'leaderboard',
-                        description: 'View the server leaderboard',
-                        options: [
-                            {
-                                name: 'type',
-                                description: 'Type of leaderboard to show',
-                                type: 3, // STRING type
-                                required: false,
-                                choices: [
-                                    { name: 'Overall XP', value: 'overall' },
-                                    { name: 'Voice Activity', value: 'voice' },
-                                    { name: 'Reactions', value: 'reactions' }
-                                ]
-                            },
-                            {
-                                name: 'limit',
-                                description: 'Number of users to show (1-25)',
-                                type: 4, // INTEGER type
-                                required: false,
-                                min_value: 1,
-                                max_value: 25
-                            }
-                        ]
-                    }
-                ];
+    getSlashCommands() {
+		return [
+			{
+				name: 'level',
+				description: 'Check your or someone else\'s level and XP',
+				options: [
+					{
+						name: 'user',
+						description: 'The user to check (defaults to yourself)',
+						type: 6, // USER type
+						required: false
+					}
+				]
+			},
+			{
+				name: 'leaderboard',
+				description: 'View the server leaderboard',
+				options: [
+					{
+						name: 'type',
+						description: 'Type of leaderboard to show',
+						type: 3, // STRING type
+						required: false,
+						choices: [
+							{ name: 'Overall XP', value: 'overall' },
+							{ name: 'Voice Activity', value: 'voice' },
+							{ name: 'Reactions', value: 'reactions' }
+						]
+					},
+					{
+						name: 'limit',
+						description: 'Number of users to show (1-25)',
+						type: 4, // INTEGER type
+						required: false,
+						min_value: 1,
+						max_value: 25
+					}
+				]
+			}
+		];
+	}
+	
+	getCommandPermissions() {
+		return {
+			'level': [], // No special permissions required
+			'leaderboard': [] // No special permissions required
+		};
+	}
+	
+	async handleSlashCommand(interaction) {
+		try {
+			const { commandName } = interaction;
 
-                // Register commands globally (you can also register per guild for faster updates during development)
-                await this.client.application.commands.set(commands);
-                console.log('✓ Leveling slash commands registered');
-            } catch (error) {
-                console.error('Error registering leveling slash commands:', error);
-            }
-        });
-
-        // Handle slash command interactions
-        this.client.on('interactionCreate', async (interaction) => {
-            if (!interaction.isChatInputCommand()) return;
-
-            const { commandName, guildId, user } = interaction;
-
-            if (commandName === 'level') {
-                await this.handleLevelCommand(interaction);
-            } else if (commandName === 'leaderboard') {
-                await this.handleLeaderboardCommand(interaction);
-            }
-        });
-    }
+			switch (commandName) {
+				case 'level':
+					await this.handleLevelCommand(interaction);
+					break;
+				case 'leaderboard':
+					await this.handleLeaderboardCommand(interaction);
+					break;
+				default:
+					await interaction.reply({ 
+						content: '❌ Unknown command.', 
+						ephemeral: true 
+					});
+			}
+		} catch (error) {
+			console.error('Error handling leveling slash command:', error);
+			if (interaction.deferred || interaction.replied) {
+				await interaction.editReply('❌ An error occurred while processing the command.');
+			} else {
+				await interaction.reply({ 
+					content: '❌ An error occurred while processing the command.', 
+					ephemeral: true 
+				});
+			}
+		}
+	}
 
     async handleLevelCommand(interaction) {
         try {

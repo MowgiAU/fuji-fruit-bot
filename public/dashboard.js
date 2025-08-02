@@ -15,6 +15,8 @@ function showNotification(message, type = 'success') {
     }, 5000);
 }
 
+
+
 // NEW: Global reusable function to add search functionality to a dropdown
 window.setupChannelSearch = function(searchInputId, selectId) {
     const searchInput = document.getElementById(searchInputId);
@@ -50,6 +52,79 @@ window.setupChannelSearch = function(searchInputId, selectId) {
         channelSelect.value = selectedValue;
     });
 };
+
+// Global server management
+let currentSelectedServer = null;
+const serverChangeCallbacks = [];
+
+// Function to register server change listeners for plugins
+window.onServerChange = function(callback) {
+    serverChangeCallbacks.push(callback);
+    
+    // If there's already a selected server, call the callback immediately
+    if (currentSelectedServer) {
+        try {
+            callback(currentSelectedServer);
+        } catch (error) {
+            console.error('Error in immediate server change callback:', error);
+        }
+    }
+};
+
+// Function to trigger server change events to all plugins
+function notifyServerChange(serverId) {
+    currentSelectedServer = serverId;
+    console.log('🔄 Global server changed to:', serverId);
+    
+    // Notify all registered plugins
+    serverChangeCallbacks.forEach(callback => {
+        try {
+            callback(serverId);
+        } catch (error) {
+            console.error('Error in server change callback:', error);
+        }
+    });
+}
+
+// Function to get current server ID (utility for plugins)
+window.getCurrentServerId = function() {
+    return currentSelectedServer;
+};
+
+// Setup global server dropdown
+async function setupGlobalServerDropdown() {
+    const globalServerSelect = document.getElementById('globalServerSelect');
+    if (!globalServerSelect) {
+        console.warn('Global server dropdown not found');
+        return;
+    }
+    
+    try {
+        // Load servers into the global dropdown
+        const response = await fetch('/api/servers');
+        const servers = await response.json();
+        
+        globalServerSelect.innerHTML = '<option value="">Select Server...</option>';
+        servers.forEach(server => {
+            const option = document.createElement('option');
+            option.value = server.id;
+            option.textContent = server.name;
+            globalServerSelect.appendChild(option);
+        });
+        
+        console.log('✅ Global server dropdown populated with', servers.length, 'servers');
+        
+        // Add change listener
+        globalServerSelect.addEventListener('change', (e) => {
+            const serverId = e.target.value;
+            notifyServerChange(serverId);
+        });
+        
+    } catch (error) {
+        console.error('Error setting up global server dropdown:', error);
+        globalServerSelect.innerHTML = '<option value="">Error loading servers</option>';
+    }
+}
 
 function switchToPage(pageId) {
     console.log('Switching to page:', pageId);
@@ -142,6 +217,8 @@ async function loadPlugins() {
                 executePluginScript(plugin);
             });
         }, 100);
+		
+		await setupGlobalServerDropdown();
         
         console.log('🎉 All plugins loaded successfully!');
         

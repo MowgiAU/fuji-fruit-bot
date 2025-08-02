@@ -181,19 +181,35 @@ class WordFilterPlugin {
             
             try {
                 // Store original message data before deletion
-                const originalData = {
-                    content: message.content,
-                    author: {
-                        username: message.author.username,
-                        displayName: message.author.displayName || message.author.username,
-                        avatarURL: message.author.displayAvatarURL({ dynamic: true, size: 128 }),
-                        id: message.author.id
-                    },
-                    attachments: Array.from(message.attachments.values()),
-                    embeds: message.embeds,
-                    timestamp: message.createdAt,
-                    reference: message.reference // For reply context
-                };
+                // Get guild member data for server-specific info
+				const guildMember = message.member || await message.guild.members.fetch(message.author.id);
+
+				// Get the highest role color (excluding @everyone)
+				const roleColor = guildMember.roles.highest.color || null;
+
+				// Store original message data before deletion
+				const originalData = {
+					content: message.content,
+					author: {
+						// Use global info as fallback
+						username: message.author.username,
+						globalDisplayName: message.author.displayName || message.author.username,
+						globalAvatarURL: message.author.displayAvatarURL({ dynamic: true, size: 128 }),
+						id: message.author.id
+					},
+					guildMember: {
+						// Server-specific info
+						displayName: guildMember.displayName, // This includes nicknames
+						nickname: guildMember.nickname,
+						avatarURL: guildMember.displayAvatarURL({ dynamic: true, size: 128 }), // Server avatar if set
+						roleColor: roleColor,
+						highestRoleName: guildMember.roles.highest.name
+					},
+					attachments: Array.from(message.attachments.values()),
+					embeds: message.embeds,
+					timestamp: message.createdAt,
+					reference: message.reference // For reply context
+				};
 
                 // Delete the original message
                 await message.delete();
@@ -229,18 +245,21 @@ class WordFilterPlugin {
             
             if (!webhook) {
                 // Fallback: post as bot with embed showing original author
-                const embed = {
-                    color: 0xffa500,
-                    author: {
-                        name: `${originalData.author.displayName} (message filtered)`,
-                        icon_url: originalData.author.avatarURL
-                    },
-                    description: censoredContent || '*No text content*',
-                    footer: {
-                        text: `🚫 Filtered: ${detectedWords.join(', ')}`
-                    },
-                    timestamp: originalData.timestamp.toISOString()
-                };
+                const displayName = originalData.guildMember.displayName || originalData.author.globalDisplayName;
+				const avatarURL = originalData.guildMember.avatarURL || originalData.author.globalAvatarURL;
+
+				const embed = {
+					color: originalData.guildMember.roleColor || 0xffa500,
+					author: {
+						name: `${displayName} (message filtered)`,
+						icon_url: avatarURL
+					},
+					description: censoredContent || '*No text content*',
+					footer: {
+						text: `🚫 Filtered: ${detectedWords.join(', ')}`
+					},
+					timestamp: originalData.timestamp.toISOString()
+				};
 
                 const messageOptions = { embeds: [embed] };
 
@@ -260,11 +279,15 @@ class WordFilterPlugin {
                 return await channel.send(messageOptions);
             } else {
                 // Use webhook to post as original user
-                const webhookOptions = {
-                    username: originalData.author.displayName,
-                    avatarURL: originalData.author.avatarURL,
-                    content: censoredContent || undefined
-                };
+                // Use webhook to post as original user
+				const displayName = originalData.guildMember.displayName || originalData.author.globalDisplayName;
+				const avatarURL = originalData.guildMember.avatarURL || originalData.author.globalAvatarURL;
+
+				const webhookOptions = {
+					username: displayName,
+					avatarURL: avatarURL,
+					content: censoredContent || undefined
+				};
 
                 // Handle attachments (note: webhooks can't repost original attachments)
                 if (originalData.attachments.length > 0) {
@@ -275,8 +298,7 @@ class WordFilterPlugin {
                     webhookOptions.content = (webhookOptions.content || '') + `\n\n*[Original attachments: ${attachmentsList}]*`;
                 }
 
-                // Add filter notice
-                webhookOptions.content = (webhookOptions.content || '') + `\n\n*🥭*`;
+                
 
                 return await webhook.send(webhookOptions);
             }
@@ -400,7 +422,7 @@ class WordFilterPlugin {
         detectedWords.forEach(word => {
             // Use word boundaries to avoid over-censoring
             const regex = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
-            censoredContent = censoredContent.replace(regex, '❌');
+            censoredContent = censoredContent.replace(regex, '<:fl20:995845546038280222>');
         });
         
         return censoredContent;

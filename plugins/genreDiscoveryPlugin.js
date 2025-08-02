@@ -1,4 +1,4 @@
-const fs =require('fs').promises;
+const fs = require('fs').promises;
 const path = require('path');
 const { SlashCommandBuilder, ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder } = require('discord.js');
 
@@ -30,19 +30,35 @@ class GenreDiscoveryPlugin {
             },
             {
                 name: 'Ambient & Chill',
-                genres: ['Ambient', 'Lo-Fi', 'Chillwave', 'Downtempo', 'Chillhop', 'Lounge', 'Trip Hop', 'Chillout', 'Future Garage', 'Liquid DnB', 'Jazzhop', 'Study Beats', 'Meditation', 'Nature Sounds', 'Dark Ambient', 'Drone', 'Post-Rock', 'Cinematic', 'Neoclassical', 'Piano', 'Instrumental', 'New Age', 'Ethereal', 'Soundscape', 'Field Recording']
+                genres: ['Ambient', 'Lo-Fi', 'Chillwave', 'Downtempo', 'Chillhop', 'Lounge', 'Trip Hop', 'Chillout', 'New Age', 'Drone', 'Field Recording', 'Meditation Music', 'Spa Music', 'Nature Sounds', 'ASMR', 'Lo-Fi Hip Hop', 'Study Music', 'Sleep Music', 'Ethereal Wave', 'Dark Ambient', 'Space Ambient', 'Cinematic Ambient', 'Minimal Ambient', 'Organic Ambient', 'Experimental Ambient']
             },
             {
-                name: 'Retro & Synthwave',
-                genres: ['Synthwave', 'Retrowave', 'Vaporwave', 'Outrun', 'Darksynth', 'Cyberpunk', 'Dreamwave', 'Chillsynth', 'Futuresynth', 'Spacewave', 'Nu-Disco', 'Italo Disco', 'Disco', 'Funk', 'Electro-Funk', 'Synthfunk', '80s Pop', 'New Wave', 'Post-Punk', 'Coldwave', 'Industrial', 'EBM', 'Techno-Pop', 'Kraftwerk Style', 'Minimal Wave']
-            },
-            {
-                name: 'Hip Hop & Urban',
-                genres: ['Hip Hop', 'Rap', 'Trap', 'Boom Bap', 'Lo-Fi Hip Hop', 'Jazz Rap', 'Conscious Rap', 'Gangsta Rap', 'Mumble Rap', 'Cloud Rap', 'Emo Rap', 'Drill', 'UK Drill', 'Grime', 'Afrobeat', 'Afro Trap', 'Latin Trap', 'Reggaeton', 'Dancehall', 'Dub', 'Reggae', 'R&B', 'Soul', 'Neo-Soul', 'Alternative R&B']
+                name: 'Hip Hop & Rap',
+                genres: ['Hip Hop', 'Trap', 'Boom Bap', 'Old School Hip Hop', 'Cloud Rap', 'Mumble Rap', 'Conscious Rap', 'Gangsta Rap', 'Alternative Hip Hop', 'Experimental Hip Hop', 'Jazz Rap', 'Lo-Fi Hip Hop', 'Memphis Rap', 'West Coast Hip Hop', 'East Coast Hip Hop', 'Southern Hip Hop', 'UK Hip Hop', 'French Hip Hop', 'Drill', 'Emo Rap', 'SoundCloud Rap', 'Horrorcore', 'Nerdcore', 'Gospel Rap', 'Latin Trap']
             },
             {
                 name: 'Rock & Alternative',
-                genres: ['Rock', 'Alternative Rock', 'Indie Rock', 'Post-Rock', 'Prog Rock', 'Psych Rock', 'Garage Rock', 'Punk Rock', 'Post-Punk', 'Grunge', 'Metal', 'Heavy Metal', 'Death Metal', 'Black Metal', 'Thrash Metal', 'Progressive Metal', 'Metalcore', 'Hardcore', 'Screamo', 'Emo', 'Pop Punk', 'Ska', 'Reggae Rock', 'Folk Rock', 'Country Rock']
+                genres: ['Rock', 'Alternative Rock', 'Indie Rock', 'Punk Rock', 'Hard Rock', 'Metal', 'Heavy Metal', 'Death Metal', 'Black Metal', 'Progressive Rock', 'Post Rock', 'Shoegaze', 'Grunge', 'Britpop', 'Post Punk', 'New Wave', 'Gothic Rock', 'Industrial Rock', 'Nu Metal', 'Metalcore', 'Hardcore Punk', 'Emo', 'Screamo', 'Math Rock', 'Noise Rock']
+            },
+            {
+                name: 'Pop & Commercial',
+                genres: ['Pop', 'Dance Pop', 'Synthpop', 'Electropop', 'Indie Pop', 'Dream Pop', 'K-Pop', 'J-Pop', 'Teen Pop', 'Bubblegum Pop', 'Art Pop', 'Experimental Pop', 'Hyperpop', 'Future Pop', 'Retro Pop', 'Chamber Pop', 'Baroque Pop', 'Power Pop', 'Sophisti-pop', 'Sunshine Pop', 'Yacht Rock', 'Soft Rock', 'Adult Contemporary', 'Contemporary R&B', 'Neo Soul']
+            },
+            {
+                name: 'World & Folk',
+                genres: ['World Music', 'Folk', 'Celtic', 'Bluegrass', 'Country', 'Americana', 'Roots', 'Traditional', 'Ethnic', 'Tribal', 'Afrobeat', 'Latin', 'Reggae', 'Ska', 'Dub', 'Calypso', 'Soca', 'Bossa Nova', 'Samba', 'Tango', 'Flamenco', 'Middle Eastern', 'Indian Classical', 'Gamelan', 'Native American']
+            },
+            {
+                name: 'Jazz & Blues',
+                genres: ['Jazz', 'Blues', 'Swing', 'Bebop', 'Cool Jazz', 'Hard Bop', 'Free Jazz', 'Fusion', 'Smooth Jazz', 'Contemporary Jazz', 'Acid Jazz', 'Nu Jazz', 'Jazz Funk', 'Soul Jazz', 'Latin Jazz', 'Gypsy Jazz', 'Chicago Blues', 'Delta Blues', 'Electric Blues', 'Rhythm and Blues', 'Gospel', 'Soul', 'Funk', 'Motown', 'Northern Soul']
+            },
+            {
+                name: 'Classical & Orchestral',
+                genres: ['Classical', 'Orchestral', 'Chamber Music', 'Opera', 'Baroque', 'Romantic', 'Modern Classical', 'Contemporary Classical', 'Minimalist', 'Film Score', 'Video Game Music', 'Epic Music', 'Cinematic', 'Neoclassical', 'String Quartet', 'Symphony', 'Concerto', 'Sonata', 'Choral', 'Sacred Music', 'Medieval', 'Renaissance', 'Impressionist', 'Serialism', 'Atonal']
+            },
+            {
+                name: 'Experimental & Avant-garde',
+                genres: ['Experimental', 'Avant-garde', 'Noise', 'Glitch', 'IDM', 'Breakcore', 'Microsound', 'Lowercase', 'Harsh Noise Wall', 'Power Electronics', 'Musique Concrète', 'Acousmatic', 'Electroacoustic', 'Circuit Bending', 'Plunderphonics', 'Vaporwave', 'Witch House', 'Seapunk', 'Hauntology', 'Outsider Music', 'Anti-Music', 'Sound Art', 'Field Recording', 'Prepared Piano', 'Extended Technique']
             }
         ];
 
@@ -66,7 +82,7 @@ class GenreDiscoveryPlugin {
 
         this.initializeData();
         this.setupRoutes();
-        this.setupSlashCommands();
+        this.setupInteractionListeners();
         
         console.log('Enhanced Genre Discovery plugin v2.1 with Management Features loaded successfully!');
     }
@@ -144,230 +160,6 @@ class GenreDiscoveryPlugin {
         return data[guildId][userId];
     }
 
-    setupRoutes() {
-        // Get predefined lists
-        this.app.get('/api/plugins/genrediscovery/lists', this.ensureAuthenticated, async (req, res) => {
-            try {
-                const genres = this.genreChunks.flatMap(chunk => chunk.genres);
-                const daws = this.dawChunks.flatMap(chunk => chunk.daws);
-                res.json({ genres, daws });
-            } catch (error) {
-                console.error('Error getting predefined lists:', error);
-                res.status(500).json({ error: 'Internal server error' });
-            }
-        });
-
-        // Get categories
-        this.app.get('/api/plugins/genrediscovery/categories', this.ensureAuthenticated, async (req, res) => {
-            try {
-                res.json({ genreChunks: this.genreChunks, dawChunks: this.dawChunks });
-            } catch (error) {
-                console.error('Error getting categories:', error);
-                res.status(500).json({ error: 'Internal server error' });
-            }
-        });
-
-        // Add new category
-        this.app.post('/api/plugins/genrediscovery/categories', this.ensureAuthenticated, async (req, res) => {
-            try {
-                const { guildId, type, name } = req.body;
-                
-                if (!await this.hasAdminPermissions(req.user.id, guildId)) {
-                    return res.status(403).json({ error: 'Admin permissions required' });
-                }
-                
-                if (type === 'genre') {
-                    if (this.genreChunks.some(chunk => chunk.name === name)) {
-                        return res.status(400).json({ error: 'Category already exists' });
-                    }
-                    this.genreChunks.push({ name, genres: [] });
-                } else if (type === 'daw') {
-                    if (this.dawChunks.some(chunk => chunk.name === name)) {
-                        return res.status(400).json({ error: 'Category already exists' });
-                    }
-                    this.dawChunks.push({ name, daws: [] });
-                } else {
-                    return res.status(400).json({ error: 'Invalid type' });
-                }
-
-                await this.saveCategories();
-                res.json({ success: true });
-            } catch (error) {
-                console.error('Error adding category:', error);
-                res.status(500).json({ error: 'Internal server error' });
-            }
-        });
-
-        // Delete category
-        this.app.delete('/api/plugins/genrediscovery/categories/:type/:name', this.ensureAuthenticated, async (req, res) => {
-            try {
-                const { guildId } = req.query;
-                const { type, name } = req.params;
-                
-                if (!await this.hasAdminPermissions(req.user.id, guildId)) {
-                    return res.status(403).json({ error: 'Admin permissions required' });
-                }
-                
-                if (type === 'genre') {
-                    this.genreChunks = this.genreChunks.filter(chunk => chunk.name !== name);
-                } else if (type === 'daw') {
-                    this.dawChunks = this.dawChunks.filter(chunk => chunk.name !== name);
-                } else {
-                    return res.status(400).json({ error: 'Invalid type' });
-                }
-
-                await this.saveCategories();
-                res.json({ success: true });
-            } catch (error) {
-                console.error('Error deleting category:', error);
-                res.status(500).json({ error: 'Internal server error' });
-            }
-        });
-
-        // Add item to category
-        this.app.post('/api/plugins/genrediscovery/categories/:type/:categoryName/items', this.ensureAuthenticated, async (req, res) => {
-            try {
-                const { guildId, item } = req.body;
-                const { type, categoryName } = req.params;
-                
-                if (!await this.hasAdminPermissions(req.user.id, guildId)) {
-                    return res.status(403).json({ error: 'Admin permissions required' });
-                }
-                
-                if (type === 'genre') {
-                    const chunk = this.genreChunks.find(c => c.name === categoryName);
-                    if (!chunk) return res.status(404).json({ error: 'Category not found' });
-                    if (!chunk.genres.includes(item)) {
-                        chunk.genres.push(item);
-                    }
-                } else if (type === 'daw') {
-                    const chunk = this.dawChunks.find(c => c.name === categoryName);
-                    if (!chunk) return res.status(404).json({ error: 'Category not found' });
-                    if (!chunk.daws.includes(item)) {
-                        chunk.daws.push(item);
-                    }
-                } else {
-                    return res.status(400).json({ error: 'Invalid type' });
-                }
-
-                await this.saveCategories();
-                res.json({ success: true });
-            } catch (error) {
-                console.error('Error adding item:', error);
-                res.status(500).json({ error: 'Internal server error' });
-            }
-        });
-
-        // Remove item from category
-        this.app.delete('/api/plugins/genrediscovery/categories/:type/:categoryName/items/:item', this.ensureAuthenticated, async (req, res) => {
-            try {
-                const { guildId } = req.query;
-                const { type, categoryName, item } = req.params;
-                
-                if (!await this.hasAdminPermissions(req.user.id, guildId)) {
-                    return res.status(403).json({ error: 'Admin permissions required' });
-                }
-                
-                if (type === 'genre') {
-                    const chunk = this.genreChunks.find(c => c.name === categoryName);
-                    if (!chunk) return res.status(404).json({ error: 'Category not found' });
-                    chunk.genres = chunk.genres.filter(g => g !== decodeURIComponent(item));
-                } else if (type === 'daw') {
-                    const chunk = this.dawChunks.find(c => c.name === categoryName);
-                    if (!chunk) return res.status(404).json({ error: 'Category not found' });
-                    chunk.daws = chunk.daws.filter(d => d !== decodeURIComponent(item));
-                } else {
-                    return res.status(400).json({ error: 'Invalid type' });
-                }
-
-                await this.saveCategories();
-                res.json({ success: true });
-            } catch (error) {
-                console.error('Error removing item:', error);
-                res.status(500).json({ error: 'Internal server error' });
-            }
-        });
-
-        // Get user's current tags
-        this.app.get('/api/plugins/genrediscovery/user/:guildId/:userId', this.ensureAuthenticated, async (req, res) => {
-            try {
-                const { guildId, userId } = req.params;
-                const data = await this.loadData();
-                const userData = this.getUserData(data, guildId, userId);
-                res.json(userData);
-            } catch (error) {
-                console.error('Error getting user data:', error);
-                res.status(500).json({ error: 'Internal server error' });
-            }
-        });
-
-        // Get settings
-        this.app.get('/api/plugins/genrediscovery/settings/:guildId', this.ensureAuthenticated, async (req, res) => {
-            try {
-                const { guildId } = req.params;
-                const settings = await this.loadSettings();
-                res.json(settings[guildId] || {});
-            } catch (error) {
-                console.error('Error getting settings:', error);
-                res.status(500).json({ error: 'Internal server error' });
-            }
-        });
-
-        // Save settings
-        this.app.post('/api/plugins/genrediscovery/settings/:guildId', this.ensureAuthenticated, async (req, res) => {
-            try {
-                const { guildId } = req.params;
-                
-                if (!await this.hasAdminPermissions(req.user.id, guildId)) {
-                    return res.status(403).json({ error: 'Admin permissions required' });
-                }
-
-                const settings = await this.loadSettings();
-                settings[guildId] = req.body;
-                await this.saveSettings(settings);
-                
-                res.json({ success: true });
-            } catch (error) {
-                console.error('Error saving settings:', error);
-                res.status(500).json({ error: 'Internal server error' });
-            }
-        });
-
-        // Get stats
-        this.app.get('/api/plugins/genrediscovery/stats/:guildId', this.ensureAuthenticated, async (req, res) => {
-            try {
-                const { guildId } = req.params;
-                const data = await this.loadData();
-                const guildData = data[guildId] || {};
-                
-                const genreCounts = {};
-                const dawCounts = {};
-                
-                Object.values(guildData).forEach(userData => {
-                    userData.genres?.forEach(genre => {
-                        genreCounts[genre] = (genreCounts[genre] || 0) + 1;
-                    });
-                    userData.daws?.forEach(daw => {
-                        dawCounts[daw] = (dawCounts[daw] || 0) + 1;
-                    });
-                });
-                
-                const topGenres = Object.entries(genreCounts)
-                    .sort(([,a], [,b]) => b - a)
-                    .slice(0, 10);
-                    
-                const topDaws = Object.entries(dawCounts)
-                    .sort(([,a], [,b]) => b - a)
-                    .slice(0, 10);
-
-                res.json({ topGenres, topDaws });
-            } catch (error) {
-                console.error('Error getting stats:', error);
-                res.status(500).json({ error: 'Internal server error' });
-            }
-        });
-    }
-
     createGenreSelectMenu(selectedGenres = []) {
         const options = this.genreChunks.map(chunk => ({
             label: chunk.name,
@@ -438,7 +230,7 @@ class GenreDiscoveryPlugin {
             .addOptions(options);
     }
 
-    // --- FIX: This method provides the command data for the central handler ---
+    // --- NEW: This method provides the command data for the centralized handler ---
     getSlashCommands() {
         return [
             new SlashCommandBuilder()
@@ -499,139 +291,15 @@ class GenreDiscoveryPlugin {
         ].map(command => command.toJSON());
     }
 
-    setupSlashCommands() {
-        // --- FIX: The registration logic is now moved to app.js ---
-        // This method now only sets up the listener for the commands.
-        this.client.on('interactionCreate', async (interaction) => {
-            if (interaction.isChatInputCommand()) {
-                const { commandName } = interaction;
-                if (['genres', 'daws', 'mytags', 'remove', 'find', 'tags'].includes(commandName)) {
-                    await this.handleGenreCommands(interaction);
-                }
-            } else if (interaction.isStringSelectMenu()) {
-                const { customId } = interaction;
-                if (['genre_category_select', 'daw_category_select', 'specific_genre_select', 'specific_daw_select'].includes(customId)) {
-                    await this.handleSelectMenuInteraction(interaction);
-                }
-            }
-        });
+    // --- NEW: Optional method for command permissions (can be omitted if no special permissions needed) ---
+    getCommandPermissions() {
+        return {
+            // All commands are available to everyone by default
+        };
     }
 
-    async handleSelectMenuInteraction(interaction) {
-        try {
-            const { customId, values, guildId, user } = interaction;
-
-            if (customId === 'genre_category_select') {
-                const categoryName = values[0].replace('genre_category_', '');
-                const data = await this.loadData();
-                const userData = this.getUserData(data, guildId, user.id);
-                
-                const specificMenu = this.createSpecificGenreMenu(categoryName, userData.genres);
-                if (!specificMenu) {
-                    return await interaction.reply({ content: '❌ Category not found.', ephemeral: true });
-                }
-
-                const row = new ActionRowBuilder().addComponents(specificMenu);
-                
-                const categoryDisplayName = this.genreChunks.find(c => 
-                    c.name.toLowerCase().replace(/\s+/g, '_') === categoryName
-                )?.name || categoryName;
-                
-                await interaction.reply({
-                    content: `🎶 **Select genres from ${categoryDisplayName}:**`,
-                    components: [row],
-                    ephemeral: true
-                });
-
-            } else if (customId === 'daw_category_select') {
-                const categoryName = values[0].replace('daw_category_', '');
-                const data = await this.loadData();
-                const userData = this.getUserData(data, guildId, user.id);
-                
-                const specificMenu = this.createSpecificDAWMenu(categoryName, userData.daws);
-                if (!specificMenu) {
-                    return await interaction.reply({ content: '❌ Category not found.', ephemeral: true });
-                }
-
-                const row = new ActionRowBuilder().addComponents(specificMenu);
-                
-                const categoryDisplayName = this.dawChunks.find(c => 
-                    c.name.toLowerCase().replace(/\s+/g, '_') === categoryName
-                )?.name || categoryName;
-                
-                await interaction.reply({
-                    content: `💻 **Select DAWs from ${categoryDisplayName}:**`,
-                    components: [row],
-                    ephemeral: true
-                });
-
-            } else if (customId === 'specific_genre_select') {
-                const data = await this.loadData();
-                const userData = this.getUserData(data, guildId, user.id);
-                
-                const newGenres = values.map(value => value.replace('add_genre_', ''));
-                const addedGenres = [];
-                
-                newGenres.forEach(genre => {
-                    if (!userData.genres.includes(genre)) {
-                        userData.genres.push(genre);
-                        addedGenres.push(genre);
-                    }
-                });
-                
-                await this.saveData(data);
-                
-                const responseText = addedGenres.length > 0 
-                    ? `✅ **Added genres:** ${addedGenres.join(', ')}\n\n**Your current genres:** ${userData.genres.slice(0, 10).join(', ')}${userData.genres.length > 10 ? ` (+${userData.genres.length - 10} more)` : ''}`
-                    : `ℹ️ All selected genres were already in your list.\n\n**Your current genres:** ${userData.genres.slice(0, 10).join(', ')}${userData.genres.length > 10 ? ` (+${userData.genres.length - 10} more)` : ''}`;
-                
-                await interaction.update({
-                    content: responseText,
-                    components: []
-                });
-
-            } else if (customId === 'specific_daw_select') {
-                const data = await this.loadData();
-                const userData = this.getUserData(data, guildId, user.id);
-                
-                const newDAWs = values.map(value => value.replace('add_daw_', ''));
-                const addedDAWs = [];
-                
-                newDAWs.forEach(daw => {
-                    if (!userData.daws.includes(daw)) {
-                        userData.daws.push(daw);
-                        addedDAWs.push(daw);
-                    }
-                });
-                
-                await this.saveData(data);
-                
-                const responseText = addedDAWs.length > 0 
-                    ? `✅ **Added DAWs:** ${addedDAWs.join(', ')}\n\n**Your current DAWs:** ${userData.daws.slice(0, 10).join(', ')}${userData.daws.length > 10 ? ` (+${userData.daws.length - 10} more)` : ''}`
-                    : `ℹ️ All selected DAWs were already in your list.\n\n**Your current DAWs:** ${userData.daws.slice(0, 10).join(', ')}${userData.daws.length > 10 ? ` (+${userData.daws.length - 10} more)` : ''}`;
-                
-                await interaction.update({
-                    content: responseText,
-                    components: []
-                });
-            }
-
-        } catch (error) {
-            console.error('Error handling select menu interaction:', error);
-            
-            try {
-                if (interaction.replied || interaction.deferred) {
-                    await interaction.followUp({ content: '❌ An error occurred while processing your selection.', ephemeral: true });
-                } else {
-                    await interaction.reply({ content: '❌ An error occurred while processing your selection.', ephemeral: true });
-                }
-            } catch (replyError) {
-                console.error('Error sending error message:', replyError);
-            }
-        }
-    }
-
-    async handleGenreCommands(interaction) {
+    // --- NEW: Centralized slash command handler ---
+    async handleSlashCommand(interaction) {
         try {
             const { commandName, options, guildId, user } = interaction;
             const data = await this.loadData();
@@ -657,101 +325,68 @@ class GenreDiscoveryPlugin {
                     ephemeral: true
                 });
 
+            } else if (commandName === 'mytags') {
+                const embed = new EmbedBuilder()
+                    .setColor(0x7289DA)
+                    .setTitle(`🏷️ ${user.username}'s Tags`)
+                    .addFields(
+                        { name: '🎶 Genres', value: userData.genres.length > 0 ? userData.genres.slice(0, 20).join(', ') : 'None set', inline: false },
+                        { name: '💻 DAWs', value: userData.daws.length > 0 ? userData.daws.slice(0, 20).join(', ') : 'None set', inline: false }
+                    );
+
+                if (userData.genres.length > 20) {
+                    embed.setFooter({ text: `Showing first 20 of ${userData.genres.length} genres` });
+                }
+
+                await interaction.reply({ embeds: [embed], ephemeral: true });
+
             } else if (commandName === 'remove') {
                 const subCommand = options.getSubcommand();
-    
+                
                 if (subCommand === 'genre') {
                     const genreToRemove = options.getString('genre');
                     const index = userData.genres.findIndex(g => g.toLowerCase() === genreToRemove.toLowerCase());
                     
                     if (index === -1) {
-                        await interaction.reply({ 
-                            content: `❌ You don't have "${genreToRemove}" in your genres.\n\n**Your current genres:** ${userData.genres.join(', ') || 'None'}`, 
-                            ephemeral: true 
-                        });
-                        return;
+                        return await interaction.reply({ content: `❌ You don't have the genre "${genreToRemove}" in your tags.`, ephemeral: true });
                     }
-            
-                    const removedGenre = userData.genres.splice(index, 1)[0];
+                    
+                    userData.genres.splice(index, 1);
                     await this.saveData(data);
                     
-                    await interaction.reply({ 
-                        content: `✅ Removed "${removedGenre}" from your genres.\n\n**Remaining genres:** ${userData.genres.join(', ') || 'None'}` 
-                    });
-                        
+                    await interaction.reply({ content: `✅ Removed "${genreToRemove}" from your genres.`, ephemeral: true });
+
                 } else if (subCommand === 'daw') {
                     const dawToRemove = options.getString('daw');
                     const index = userData.daws.findIndex(d => d.toLowerCase() === dawToRemove.toLowerCase());
-                        
+                    
                     if (index === -1) {
-                        await interaction.reply({ 
-                            content: `❌ You don't have "${dawToRemove}" in your DAWs.\n\n**Your current DAWs:** ${userData.daws.join(', ') || 'None'}`, 
-                            ephemeral: true 
-                        });
-                        return;
+                        return await interaction.reply({ content: `❌ You don't have the DAW "${dawToRemove}" in your tags.`, ephemeral: true });
                     }
-                        
-                    const removedDAW = userData.daws.splice(index, 1)[0];
+                    
+                    userData.daws.splice(index, 1);
                     await this.saveData(data);
-                        
-                    await interaction.reply({ 
-                        content: `✅ Removed "${removedDAW}" from your DAWs.\n\n**Remaining DAWs:** ${userData.daws.join(', ') || 'None'}` 
-                    });
-                        
+                    
+                    await interaction.reply({ content: `✅ Removed "${dawToRemove}" from your DAWs.`, ephemeral: true });
+
                 } else if (subCommand === 'all') {
                     const confirmation = options.getString('confirm');
+                    if (confirmation === 'confirm') {
+                        userData.genres = [];
+                        userData.daws = [];
+                        await this.saveData(data);
                         
-                    if (confirmation !== 'confirm') {
-                        await interaction.reply({ 
-                            content: '❌ You must select "Yes, remove all my tags" to confirm this action.', 
-                            ephemeral: true 
-                        });
-                        return;
+                        await interaction.reply({ content: '✅ All your tags have been removed.', ephemeral: true });
                     }
-                        
-                    const removedGenres = [...userData.genres];
-                    const removedDAWs = [...userData.daws];
-                        
-                    userData.genres = [];
-                    userData.daws = [];
-                    await this.saveData(data);
-                        
-                    const embed = new EmbedBuilder()
-                        .setColor(0xff6b6b)
-                        .setTitle('🗑️ All Tags Removed')
-                        .setDescription('All your genres and DAWs have been cleared.')
-                        .addFields(
-                            { name: '🎶 Removed Genres', value: removedGenres.join(', ') || 'None', inline: false },
-                            { name: '💻 Removed DAWs', value: removedDAWs.join(', ') || 'None', inline: false }
-                        )
-                        .setFooter({ text: 'Use /genres and /daws to add new tags!' });
-
-                    await interaction.reply({ embeds: [embed] });
                 }
-
-            } else if (commandName === 'mytags') {
-                const embed = new EmbedBuilder()
-                    .setColor(0x7289DA)
-                    .setAuthor({ name: `${user.username}'s Music Tags`, iconURL: user.displayAvatarURL() })
-                    .addFields(
-                        { name: '🎶 Genres', value: userData.genres.length > 0 ? userData.genres.slice(0, 20).join(', ') : 'None set', inline: false },
-                        { name: '💻 DAWs', value: userData.daws.length > 0 ? userData.daws.slice(0, 20).join(', ') : 'None set', inline: false }
-                    )
-                    .setFooter({ text: 'Use /genres and /daws to update your tags!' });
-
-                if (userData.genres.length > 20) {
-                    embed.setFooter({ text: `Showing first 20 of ${userData.genres.length} genres. Use /genres and /daws to update your tags!` });
-                }
-
-                await interaction.reply({ embeds: [embed] });
 
             } else if (commandName === 'tags') {
                 const targetUser = options.getUser('user') || user;
                 const targetUserData = this.getUserData(data, guildId, targetUser.id);
-
+                
                 const embed = new EmbedBuilder()
                     .setColor(0x7289DA)
-                    .setAuthor({ name: `${targetUser.username}'s Music Tags`, iconURL: targetUser.displayAvatarURL() })
+                    .setTitle(`🏷️ ${targetUser.username}'s Tags`)
                     .addFields(
                         { name: '🎶 Genres', value: targetUserData.genres.length > 0 ? targetUserData.genres.slice(0, 20).join(', ') : 'None set', inline: false },
                         { name: '💻 DAWs', value: targetUserData.daws.length > 0 ? targetUserData.daws.slice(0, 20).join(', ') : 'None set', inline: false }
@@ -815,6 +450,243 @@ class GenreDiscoveryPlugin {
         }
     }
 
+    // --- UPDATED: Non-slash command interaction listeners (kept as-is) ---
+    setupInteractionListeners() {
+        this.client.on('interactionCreate', async (interaction) => {
+            if (interaction.isStringSelectMenu()) {
+                const { customId } = interaction;
+                if (['genre_category_select', 'daw_category_select', 'specific_genre_select', 'specific_daw_select'].includes(customId)) {
+                    await this.handleSelectMenuInteraction(interaction);
+                }
+            }
+        });
+    }
+
+    async handleSelectMenuInteraction(interaction) {
+        try {
+            const { customId, values, guildId, user } = interaction;
+
+            if (customId === 'genre_category_select') {
+                const categoryName = values[0].replace('genre_category_', '');
+                const data = await this.loadData();
+                const userData = this.getUserData(data, guildId, user.id);
+                
+                const specificMenu = this.createSpecificGenreMenu(categoryName, userData.genres);
+                if (!specificMenu) {
+                    return await interaction.reply({ content: '❌ Category not found.', ephemeral: true });
+                }
+
+                const row = new ActionRowBuilder().addComponents(specificMenu);
+                
+                const categoryDisplayName = this.genreChunks.find(c => 
+                    c.name.toLowerCase().replace(/\s+/g, '_') === categoryName
+                )?.name || categoryName;
+                
+                await interaction.reply({
+                    content: `🎶 **Select genres from ${categoryDisplayName}:**`,
+                    components: [row],
+                    ephemeral: true
+                });
+
+            } else if (customId === 'daw_category_select') {
+                const categoryName = values[0].replace('daw_category_', '');
+                const data = await this.loadData();
+                const userData = this.getUserData(data, guildId, user.id);
+                
+                const specificMenu = this.createSpecificDAWMenu(categoryName, userData.daws);
+                if (!specificMenu) {
+                    return await interaction.reply({ content: '❌ Category not found.', ephemeral: true });
+                }
+
+                const row = new ActionRowBuilder().addComponents(specificMenu);
+                
+                const categoryDisplayName = this.dawChunks.find(c => 
+                    c.name.toLowerCase().replace(/\s+/g, '_') === categoryName
+                )?.name || categoryName;
+                
+                await interaction.reply({
+                    content: `💻 **Select DAWs from ${categoryDisplayName}:**`,
+                    components: [row],
+                    ephemeral: true
+                });
+
+            } else if (customId === 'specific_genre_select') {
+                const data = await this.loadData();
+                const userData = this.getUserData(data, guildId, user.id);
+                
+                const newGenres = values
+                    .filter(value => value.startsWith('add_genre_'))
+                    .map(value => value.replace('add_genre_', ''));
+                
+                const addedGenres = [];
+                for (const genre of newGenres) {
+                    if (!userData.genres.includes(genre)) {
+                        userData.genres.push(genre);
+                        addedGenres.push(genre);
+                    }
+                }
+                
+                await this.saveData(data);
+                
+                const responseText = addedGenres.length > 0 
+                    ? `✅ **Added genres:** ${addedGenres.join(', ')}\n\n**Your current genres:** ${userData.genres.slice(0, 10).join(', ')}${userData.genres.length > 10 ? ` (+${userData.genres.length - 10} more)` : ''}`
+                    : `ℹ️ All selected genres were already in your list.\n\n**Your current genres:** ${userData.genres.slice(0, 10).join(', ')}${userData.genres.length > 10 ? ` (+${userData.genres.length - 10} more)` : ''}`;
+                
+                await interaction.update({
+                    content: responseText,
+                    components: []
+                });
+
+            } else if (customId === 'specific_daw_select') {
+                const data = await this.loadData();
+                const userData = this.getUserData(data, guildId, user.id);
+                
+                const newDAWs = values
+                    .filter(value => value.startsWith('add_daw_'))
+                    .map(value => value.replace('add_daw_', ''));
+                
+                const addedDAWs = [];
+                for (const daw of newDAWs) {
+                    if (!userData.daws.includes(daw)) {
+                        userData.daws.push(daw);
+                        addedDAWs.push(daw);
+                    }
+                }
+                
+                await this.saveData(data);
+                
+                const responseText = addedDAWs.length > 0 
+                    ? `✅ **Added DAWs:** ${addedDAWs.join(', ')}\n\n**Your current DAWs:** ${userData.daws.slice(0, 10).join(', ')}${userData.daws.length > 10 ? ` (+${userData.daws.length - 10} more)` : ''}`
+                    : `ℹ️ All selected DAWs were already in your list.\n\n**Your current DAWs:** ${userData.daws.slice(0, 10).join(', ')}${userData.daws.length > 10 ? ` (+${userData.daws.length - 10} more)` : ''}`;
+                
+                await interaction.update({
+                    content: responseText,
+                    components: []
+                });
+            }
+
+        } catch (error) {
+            console.error('Error handling select menu interaction:', error);
+            
+            try {
+                if (interaction.replied || interaction.deferred) {
+                    await interaction.followUp({ content: '❌ An error occurred while processing your selection.', ephemeral: true });
+                } else {
+                    await interaction.reply({ content: '❌ An error occurred while processing your selection.', ephemeral: true });
+                }
+            } catch (replyError) {
+                console.error('Error sending error message:', replyError);
+            }
+        }
+    }
+
+    setupRoutes() {
+        // Get user data for a specific guild
+        this.app.get('/api/plugins/genrediscovery/data/:guildId', this.ensureAuthenticated, async (req, res) => {
+            try {
+                const { guildId } = req.params;
+                
+                if (!await this.hasAdminPermissions(req.user.id, guildId)) {
+                    return res.status(403).json({ error: 'Admin permissions required' });
+                }
+                
+                const data = await this.loadData();
+                const guildData = data[guildId] || {};
+                
+                const users = Object.entries(guildData).map(([userId, userData]) => ({
+                    userId,
+                    genres: userData.genres || [],
+                    daws: userData.daws || []
+                }));
+                
+                res.json({ users });
+            } catch (error) {
+                console.error('Error fetching genre discovery data:', error);
+                res.status(500).json({ error: 'Failed to fetch data' });
+            }
+        });
+
+        // Get settings for a specific guild
+        this.app.get('/api/plugins/genrediscovery/settings/:guildId', this.ensureAuthenticated, async (req, res) => {
+            try {
+                const { guildId } = req.params;
+                
+                if (!await this.hasAdminPermissions(req.user.id, guildId)) {
+                    return res.status(403).json({ error: 'Admin permissions required' });
+                }
+                
+                const settings = await this.loadSettings();
+                res.json(settings[guildId] || {});
+            } catch (error) {
+                console.error('Error fetching genre discovery settings:', error);
+                res.status(500).json({ error: 'Failed to fetch settings' });
+            }
+        });
+
+        // Update settings for a specific guild
+        this.app.post('/api/plugins/genrediscovery/settings/:guildId', this.ensureAuthenticated, async (req, res) => {
+            try {
+                const { guildId } = req.params;
+                
+                if (!await this.hasAdminPermissions(req.user.id, guildId)) {
+                    return res.status(403).json({ error: 'Admin permissions required' });
+                }
+                
+                const settings = await this.loadSettings();
+                settings[guildId] = req.body;
+                await this.saveSettings(settings);
+                
+                res.json({ success: true });
+            } catch (error) {
+                console.error('Error updating genre discovery settings:', error);
+                res.status(500).json({ error: 'Failed to update settings' });
+            }
+        });
+
+        // Get categories
+        this.app.get('/api/plugins/genrediscovery/categories', this.ensureAuthenticated, async (req, res) => {
+            try {
+                const categories = await this.loadCategories();
+                res.json(categories);
+            } catch (error) {
+                console.error('Error fetching categories:', error);
+                res.status(500).json({ error: 'Failed to fetch categories' });
+            }
+        });
+
+        // Update categories
+        this.app.post('/api/plugins/genrediscovery/categories', this.ensureAuthenticated, async (req, res) => {
+            try {
+                const { genreChunks, dawChunks } = req.body;
+                
+                this.genreChunks = genreChunks || this.defaultGenreChunks;
+                this.dawChunks = dawChunks || this.defaultDawChunks;
+                
+                await this.saveCategories();
+                
+                res.json({ success: true });
+            } catch (error) {
+                console.error('Error updating categories:', error);
+                res.status(500).json({ error: 'Failed to update categories' });
+            }
+        });
+
+        // Reset to default categories
+        this.app.post('/api/plugins/genrediscovery/categories/reset', this.ensureAuthenticated, async (req, res) => {
+            try {
+                this.genreChunks = [...this.defaultGenreChunks];
+                this.dawChunks = [...this.defaultDawChunks];
+                
+                await this.saveCategories();
+                
+                res.json({ success: true });
+            } catch (error) {
+                console.error('Error resetting categories:', error);
+                res.status(500).json({ error: 'Failed to reset categories' });
+            }
+        });
+    }
+
     getFrontendComponent() {
         return {
             id: 'genre-discovery-plugin',
@@ -858,98 +730,51 @@ class GenreDiscoveryPlugin {
                             <span>🗑️ Remove a specific DAW from your tags</span>
                         </div>
                         <div class="command-item">
-                            <code>/remove all</code>
-                            <span>🗑️ Remove all your tags (requires confirmation)</span>
+                            <code>/tags [@user]</code>
+                            <span>👀 View another user's tags</span>
                         </div>
                         <div class="command-item">
                             <code>/find genre [name]</code>
-                            <span>🔍 Find users by genre</span>
+                            <span>🔍 Find users who produce a specific genre</span>
                         </div>
                         <div class="command-item">
                             <code>/find daw [name]</code>
-                            <span>🔍 Find users by DAW</span>
-                        </div>
-                        <div class="command-item">
-                            <code>/tags [@user]</code>
-                            <span>👀 View someone else's tags</span>
+                            <span>🔍 Find users who use a specific DAW</span>
                         </div>
                     </div>
                 </div>
 
-                <div class="settings-section">
-                    <h3>Dashboard Management</h3>
-                    <div class="form-group">
-                        <label for="genre-server-select">Server:</label>
-                        <select id="genre-server-select" class="form-control">
-                            <option value="">Select a server...</option>
-                        </select>
-                    </div>
+                <div class="card">
+                    <h4>🎶 Genre Categories Management</h4>
+                    <div id="genreCategoriesList"></div>
+                    <button id="addGenreCategoryBtn" class="btn btn-primary">+ Add Genre Category</button>
                 </div>
 
-                <div id="genre-settings-section" class="settings-section" style="display: none;">
-                    <h3>Plugin Settings (Admin Only)</h3>
+                <div class="card">
+                    <h4>💻 DAW Categories Management</h4>
+                    <div id="dawCategoriesList"></div>
+                    <button id="addDawCategoryBtn" class="btn btn-primary">+ Add DAW Category</button>
+                </div>
+
+                <div class="card">
+                    <h4>⚙️ Settings</h4>
                     <div class="form-group">
-                        <label for="genre-log-channel">Log Channel:</label>
-                        <select id="genre-log-channel" class="form-control">
-                            <option value="">None (no logging)</option>
+                        <label for="genreLogChannel">Log Channel (Optional)</label>
+                        <select id="genreLogChannel" class="form-control">
+                            <option value="">No logging</option>
                         </select>
+                        <small class="form-text">Channel to log when users update their tags</small>
                     </div>
-                    <button id="save-genre-settings" class="btn-primary">
-                        <span class="btn-text">💾 Save Settings</span>
+                    <button id="saveGenreSettingsBtn" class="btn btn-success">
+                        <span class="btn-text">Save Settings</span>
                         <span class="btn-loader" style="display: none;">⏳</span>
                     </button>
                 </div>
 
-                <div id="genre-management-section" class="settings-section" style="display: none;">
-                    <h3>🎶 Genre Category Management (Admin Only)</h3>
-                    
-                    <div class="form-group">
-                        <label for="new-genre-category">Add New Genre Category:</label>
-                        <div style="display: flex; gap: 10px;">
-                            <input type="text" id="new-genre-category" class="form-control" placeholder="Category name...">
-                            <button id="add-genre-category" class="btn btn-success">➕ Add</button>
-                        </div>
-                    </div>
-
-                    <div id="genre-categories-list">
-                        <!-- Categories will be loaded here -->
-                    </div>
-                </div>
-
-                <div id="daw-management-section" class="settings-section" style="display: none;">
-                    <h3>💻 DAW Category Management (Admin Only)</h3>
-                    
-                    <div class="form-group">
-                        <label for="new-daw-category">Add New DAW Category:</label>
-                        <div style="display: flex; gap: 10px;">
-                            <input type="text" id="new-daw-category" class="form-control" placeholder="Category name...">
-                            <button id="add-daw-category" class="btn btn-success">➕ Add</button>
-                        </div>
-                    </div>
-
-                    <div id="daw-categories-list">
-                        <!-- Categories will be loaded here -->
-                    </div>
-                </div>
-
-                <div id="genre-stats-section" class="settings-section" style="display: none;">
-                    <h3>📊 Server Statistics</h3>
-                    <button id="refresh-genre-stats" class="btn btn-secondary">🔄 Refresh Stats</button>
-                    
-                    <div class="stats-container" style="display: flex; gap: 20px; margin-top: 15px;">
-                        <div class="stats-column" style="flex: 1;">
-                            <h4>🎶 Top Genres</h4>
-                            <div id="genre-stats-list" class="stats-list">
-                                <!-- Stats will be loaded here -->
-                            </div>
-                        </div>
-                        <div class="stats-column" style="flex: 1;">
-                            <h4>💻 Top DAWs</h4>
-                            <div id="daw-stats-list" class="stats-list">
-                                <!-- Stats will be loaded here -->
-                            </div>
-                        </div>
-                    </div>
+                <div class="card">
+                    <h4>🔄 Actions</h4>
+                    <button id="resetCategoriesBtn" class="btn btn-warning">Reset to Default Categories</button>
+                    <small class="form-text">This will restore all genre and DAW categories to their default values</small>
                 </div>
             </div>`,
             
@@ -958,120 +783,50 @@ class GenreDiscoveryPlugin {
                 
                 let currentGuildId = null;
                 
-                const genreServerSelect = document.getElementById('genre-server-select');
-                const genreStatsSection = document.getElementById('genre-stats-section');
-                const genreSettingsSection = document.getElementById('genre-settings-section');
-                const genreManagementSection = document.getElementById('genre-management-section');
-                const dawManagementSection = document.getElementById('daw-management-section');
-                const genreLogChannel = document.getElementById('genre-log-channel');
-                const saveGenreSettings = document.getElementById('save-genre-settings');
-                const refreshGenreStats = document.getElementById('refresh-genre-stats');
-                const genreStatsList = document.getElementById('genre-stats-list');
-                const dawStatsList = document.getElementById('daw-stats-list');
+                // Get DOM elements
+                const genreCategoriesList = document.getElementById('genreCategoriesList');
+                const dawCategoriesList = document.getElementById('dawCategoriesList');
+                const addGenreCategoryBtn = document.getElementById('addGenreCategoryBtn');
+                const addDawCategoryBtn = document.getElementById('addDawCategoryBtn');
+                const genreLogChannel = document.getElementById('genreLogChannel');
+                const saveGenreSettingsBtn = document.getElementById('saveGenreSettingsBtn');
+                const resetCategoriesBtn = document.getElementById('resetCategoriesBtn');
 
-                const addGenreCategoryBtn = document.getElementById('add-genre-category');
-                const newGenreCategoryInput = document.getElementById('new-genre-category');
-                const genreCategoriesList = document.getElementById('genre-categories-list');
-                const addDawCategoryBtn = document.getElementById('add-daw-category');
-                const newDawCategoryInput = document.getElementById('new-daw-category');
-                const dawCategoriesList = document.getElementById('daw-categories-list');
-                
-                if (genreServerSelect) {
-                    genreServerSelect.addEventListener('change', function() {
-                        currentGuildId = this.value;
-                        if (currentGuildId) {
+                // Initialize when guild is selected
+                if (window.onGuildChange) {
+                    window.onGuildChange(function(guildId) {
+                        currentGuildId = guildId;
+                        if (guildId) {
                             loadChannels();
-                            loadStats();
                             loadSettings();
                             loadCategories();
-                            genreStatsSection.style.display = 'block';
-                            genreSettingsSection.style.display = 'block';
-                            genreManagementSection.style.display = 'block';
-                            dawManagementSection.style.display = 'block';
-                        } else {
-                            genreStatsSection.style.display = 'none';
-                            genreSettingsSection.style.display = 'none';
-                            genreManagementSection.style.display = 'none';
-                            dawManagementSection.style.display = 'none';
                         }
                     });
                 }
 
-                if (addGenreCategoryBtn) {
-                    addGenreCategoryBtn.addEventListener('click', async function() {
-                        const categoryName = newGenreCategoryInput.value.trim();
-                        if (!categoryName || !currentGuildId) return;
-                        await addCategory('genre', categoryName);
-                    });
+                // Event listeners
+                if (saveGenreSettingsBtn) {
+                    saveGenreSettingsBtn.addEventListener('click', saveSettings);
                 }
 
-                if (addDawCategoryBtn) {
-                    addDawCategoryBtn.addEventListener('click', async function() {
-                        const categoryName = newDawCategoryInput.value.trim();
-                        if (!categoryName || !currentGuildId) return;
-                        await addCategory('daw', categoryName);
-                    });
+                if (resetCategoriesBtn) {
+                    resetCategoriesBtn.addEventListener('click', resetCategories);
                 }
 
-                if (newGenreCategoryInput) {
-                    newGenreCategoryInput.addEventListener('keypress', function(e) {
-                        if (e.key === 'Enter') addGenreCategoryBtn.click();
-                    });
-                }
-
-                if (newDawCategoryInput) {
-                    newDawCategoryInput.addEventListener('keypress', function(e) {
-                        if (e.key === 'Enter') addDawCategoryBtn.click();
-                    });
-                }
-                
-                if (saveGenreSettings) {
-                    saveGenreSettings.addEventListener('click', saveSettings);
-                }
-                
-                if (refreshGenreStats) {
-                    refreshGenreStats.addEventListener('click', loadStats);
-                }
-                
-                loadServers();
-                
-                async function loadServers() {
-                    try {
-                        const response = await fetch('/api/servers');
-                        const servers = await response.json();
-                        
-                        if (genreServerSelect) {
-                            genreServerSelect.innerHTML = '<option value="">Select a server...</option>';
-                            servers.forEach(function(server) {
-                                const option = document.createElement('option');
-                                option.value = server.id;
-                                option.textContent = server.name;
-                                genreServerSelect.appendChild(option);
-                            });
-                        }
-                    } catch (error) {
-                        console.error('Error loading servers:', error);
-                    }
-                }
-                
                 async function loadChannels() {
-                    if (!currentGuildId) return;
+                    if (!currentGuildId || !genreLogChannel) return;
                     
                     try {
-                        const response = await fetch('/api/channels/' + currentGuildId);
+                        const response = await fetch('/api/servers/' + currentGuildId + '/channels');
                         const channels = await response.json();
                         
-                        if (genreLogChannel) {
-                            const currentVal = genreLogChannel.value;
-                            genreLogChannel.innerHTML = '<option value="">None (no logging)</option>';
-                            channels.forEach(function(channel) {
-                                const option = document.createElement('option');
-                                option.value = channel.id;
-                                option.textContent = '#' + channel.name;
-                                genreLogChannel.appendChild(option);
-                            });
-                            genreLogChannel.value = currentVal;
-                        }
+                        genreLogChannel.innerHTML = '<option value="">No logging</option>';
+                        channels.filter(c => c.type === 0).forEach(function(channel) {
+                            const option = document.createElement('option');
+                            option.value = channel.id;
+                            option.textContent = '#' + channel.name;
+                            genreLogChannel.appendChild(option);
+                        });
                     } catch (error) {
                         console.error('Error loading channels:', error);
                     }
@@ -1121,185 +876,36 @@ class GenreDiscoveryPlugin {
                         categoryDiv.style.backgroundColor = 'rgba(255,255,255,0.05)';
                         
                         const items = type === 'genre' ? category.genres : category.daws;
-                        const itemType = type === 'genre' ? 'genre' : 'DAW';
-                        const safeId = category.name.replace(/\\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
-                        const escapedCategoryName = category.name.replace(/'/g, "\\\\'").replace(/"/g, '\\\\"');
+                        const itemType = type === 'genre' ? 'genres' : 'DAWs';
                         
                         categoryDiv.innerHTML = \`
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                                <h4 style="margin: 0; color: #7289DA;">\${category.name} (\${items.length} \${itemType}s)</h4>
-                                <button class="btn btn-danger btn-sm" onclick="window.deleteCategory('\${type}', '\${escapedCategoryName}')">🗑️ Delete Category</button>
+                            <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 10px;">
+                                <h5 style="margin: 0; color: #7289DA;">\${category.name} (\${items.length} \${itemType})</h5>
+                                <button class="btn btn-sm btn-danger" onclick="removeCategory('\${type}', '\${category.name}')">Remove</button>
                             </div>
-                            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                                <input type="text" id="new-\${type}-\${safeId}" class="form-control" placeholder="Add new \${itemType}...">
-                                <button class="btn btn-success btn-sm" onclick="window.addItem('\${type}', '\${escapedCategoryName}', 'new-\${type}-\${safeId}')">➕ Add</button>
-                            </div>
-                            <div class="items-list" style="display: flex; flex-wrap: wrap; gap: 5px;">
-                                \${items.map(function(item) {
-                                    const escapedItem = item.replace(/'/g, "\\\\'").replace(/"/g, '\\\\"');
-                                    return \`<span class="item-tag" style="background: rgba(114, 137, 218, 0.2); padding: 4px 8px; border-radius: 4px; font-size: 12px; display: inline-flex; align-items: center; gap: 5px;">
-                                        \${item}
-                                        <button onclick="window.removeItem('\${type}', '\${escapedCategoryName}', '\${escapedItem}')" style="background: none; border: none; color: #ff6b6b; cursor: pointer; font-size: 14px;">✕</button>
-                                    </span>\`;
-                                }).join('')}
+                            <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+                                \${items.map(item => \`<span style="background: rgba(114, 137, 218, 0.2); padding: 2px 8px; border-radius: 12px; font-size: 12px;">\${item}</span>\`).join('')}
                             </div>
                         \`;
+                        
                         container.appendChild(categoryDiv);
                     });
                 }
 
-                async function addCategory(type, name) {
-                    if (!currentGuildId) return;
-                    
-                    try {
-                        const response = await fetch('/api/plugins/genrediscovery/categories', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ type: type, name: name, guildId: currentGuildId })
-                        });
-                        
-                        const result = await response.json();
-                        
-                        if (response.ok) {
-                            if (window.showNotification) window.showNotification('Category added successfully!', 'success');
-                            if (type === 'genre') {
-                                newGenreCategoryInput.value = '';
-                            } else {
-                                newDawCategoryInput.value = '';
-                            }
-                            loadCategories();
-                        } else {
-                            if (window.showNotification) window.showNotification('Error: ' + result.error, 'error');
-                        }
-                    } catch (error) {
-                        console.error('Error adding category:', error);
-                        if (window.showNotification) window.showNotification('Error adding category', 'error');
-                    }
-                }
-
-                window.deleteCategory = async function(type, name) {
-                    if (!currentGuildId) return;
-                    if (!confirm('Are you sure you want to delete this category and all its items?')) return;
-                    
-                    try {
-                        const response = await fetch('/api/plugins/genrediscovery/categories/' + type + '/' + encodeURIComponent(name) + '?guildId=' + currentGuildId, {
-                            method: 'DELETE'
-                        });
-                        
-                        if (response.ok) {
-                            if (window.showNotification) window.showNotification('Category deleted successfully!', 'success');
-                            loadCategories();
-                        } else {
-                            const result = await response.json();
-                            if (window.showNotification) window.showNotification('Error: ' + result.error, 'error');
-                        }
-                    } catch (error) {
-                        console.error('Error deleting category:', error);
-                        if (window.showNotification) window.showNotification('Error deleting category', 'error');
-                    }
-                };
-
-                window.addItem = async function(type, categoryName, inputId) {
-                    const input = document.getElementById(inputId);
-                    const item = input.value.trim();
-                    if (!item || !currentGuildId) return;
-                    
-                    try {
-                        const response = await fetch('/api/plugins/genrediscovery/categories/' + type + '/' + encodeURIComponent(categoryName) + '/items', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ item: item, guildId: currentGuildId })
-                        });
-                        
-                        if (response.ok) {
-                            if (window.showNotification) window.showNotification('Item added successfully!', 'success');
-                            input.value = '';
-                            loadCategories();
-                        } else {
-                            const result = await response.json();
-                            if (window.showNotification) window.showNotification('Error: ' + result.error, 'error');
-                        }
-                    } catch (error) {
-                        console.error('Error adding item:', error);
-                        if (window.showNotification) window.showNotification('Error adding item', 'error');
-                    }
-                };
-
-                window.removeItem = async function(type, categoryName, item) {
-                    if (!currentGuildId) return;
-                    if (!confirm('Are you sure you want to remove "' + item + '"?')) return;
-                    
-                    try {
-                        const response = await fetch('/api/plugins/genrediscovery/categories/' + type + '/' + encodeURIComponent(categoryName) + '/items/' + encodeURIComponent(item) + '?guildId=' + currentGuildId, {
-                            method: 'DELETE'
-                        });
-                        
-                        if (response.ok) {
-                            if (window.showNotification) window.showNotification('Item removed successfully!', 'success');
-                            loadCategories();
-                        } else {
-                            const result = await response.json();
-                            if (window.showNotification) window.showNotification('Error: ' + result.error, 'error');
-                        }
-                    } catch (error) {
-                        console.error('Error removing item:', error);
-                        if (window.showNotification) window.showNotification('Error removing item', 'error');
-                    }
-                };
-
-                async function loadStats() {
-                    if (!currentGuildId) return;
-                    
-                    try {
-                        const response = await fetch('/api/plugins/genrediscovery/stats/' + currentGuildId);
-                        const stats = await response.json();
-                        
-                        if (genreStatsList) {
-                            genreStatsList.innerHTML = '';
-                            if (stats.topGenres.length === 0) {
-                                genreStatsList.innerHTML = '<div class="stats-item"><span>No genre data yet</span></div>';
-                            } else {
-                                stats.topGenres.forEach(function(item) {
-                                    const div = document.createElement('div');
-                                    div.className = 'stats-item';
-                                    div.innerHTML = \`<span class="stats-name">\${item[0]}</span><span class="stats-count">\${item[1]}</span>\`;
-                                    genreStatsList.appendChild(div);
-                                });
-                            }
-                        }
-                        
-                        if (dawStatsList) {
-                            dawStatsList.innerHTML = '';
-                            if (stats.topDaws.length === 0) {
-                                dawStatsList.innerHTML = '<div class="stats-item"><span>No DAW data yet</span></div>';
-                            } else {
-                                stats.topDaws.forEach(function(item) {
-                                    const div = document.createElement('div');
-                                    div.className = 'stats-item';
-                                    div.innerHTML = \`<span class="stats-name">\${item[0]}</span><span class="stats-count">\${item[1]}</span>\`;
-                                    dawStatsList.appendChild(div);
-                                });
-                            }
-                        }
-                    } catch (error) {
-                        console.error('Error loading stats:', error);
-                    }
-                }
-                
                 async function saveSettings() {
                     if (!currentGuildId) return;
                     
-                    const saveBtn = document.getElementById('save-genre-settings');
-                    const btnText = saveBtn ? saveBtn.querySelector('.btn-text') : null;
-                    const btnLoader = saveBtn ? saveBtn.querySelector('.btn-loader') : null;
-                    
-                    if (saveBtn) saveBtn.disabled = true;
-                    if (btnText) btnText.style.display = 'none';
-                    if (btnLoader) btnLoader.style.display = 'inline';
+                    const saveBtn = saveGenreSettingsBtn;
+                    const btnText = saveBtn.querySelector('.btn-text');
+                    const btnLoader = saveBtn.querySelector('.btn-loader');
                     
                     try {
+                        saveBtn.disabled = true;
+                        if (btnText) btnText.style.display = 'none';
+                        if (btnLoader) btnLoader.style.display = 'inline';
+                        
                         const settings = {
-                            logChannelId: genreLogChannel ? genreLogChannel.value || null : null
+                            logChannelId: genreLogChannel && genreLogChannel.value ? genreLogChannel.value : null
                         };
                         
                         const response = await fetch('/api/plugins/genrediscovery/settings/' + currentGuildId, {
@@ -1321,6 +927,30 @@ class GenreDiscoveryPlugin {
                         if (saveBtn) saveBtn.disabled = false;
                         if (btnText) btnText.style.display = 'inline';
                         if (btnLoader) btnLoader.style.display = 'none';
+                    }
+                }
+
+                async function resetCategories() {
+                    if (!confirm('Are you sure you want to reset all categories to defaults? This cannot be undone.')) {
+                        return;
+                    }
+                    
+                    try {
+                        const response = await fetch('/api/plugins/genrediscovery/categories/reset', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                        
+                        if (response.ok) {
+                            if (window.showNotification) window.showNotification('Categories reset to defaults!', 'success');
+                            loadCategories();
+                        } else {
+                            const result = await response.json();
+                            if (window.showNotification) window.showNotification('Error: ' + (result.error || 'Failed to reset'), 'error');
+                        }
+                    } catch (error) {
+                        console.error('Error resetting categories:', error);
+                        if (window.showNotification) window.showNotification('Error resetting categories', 'error');
                     }
                 }
                 

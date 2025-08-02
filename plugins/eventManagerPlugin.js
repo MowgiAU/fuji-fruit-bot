@@ -283,10 +283,7 @@ class EventManagerPlugin {
                     <h3><span class="plugin-icon">📅</span> Event Manager</h3>
                     <p>Manage collaborations and competition permissions</p>
                 </div>
-                <div class="form-group">
-                    <label>Server</label>
-                    <select id="eventServerSelect" class="form-control"></select>
-                </div>
+                
                 <div id="eventSettings" style="display:none; margin-top:20px;">
                     <div class="form-group">
                         <label>Allowed Roles</label>
@@ -310,17 +307,24 @@ class EventManagerPlugin {
                 const saveBtn = document.getElementById('saveEventSettingsBtn');
                 const syncBtn = document.getElementById('syncEventsBtn');
                 let currentServer = null;
-                async function loadServers(){
-                    const res = await fetch('/api/servers');
-                    const servers = await res.json();
-                    serverSelect.innerHTML = '<option value="">Select server...</option>';
-                    servers.forEach(s => {
-                        const opt = document.createElement('option');
-                        opt.value = s.id;
-                        opt.textContent = s.name;
-                        serverSelect.appendChild(opt);
-                    });
-                }
+                window.onServerChange(async (serverId) => {
+					currentServer = serverId;
+					if(!currentServer){
+						settingsDiv.style.display='none';
+						return;
+					}
+					await loadServerData(currentServer);
+					await loadSettings(currentServer);
+					settingsDiv.style.display='block';
+				});
+
+				if (window.getCurrentServerId && window.getCurrentServerId()) {
+					const serverId = window.getCurrentServerId();
+					currentServer = serverId;
+					loadServerData(currentServer);
+					loadSettings(currentServer);
+					settingsDiv.style.display='block';
+				}
                 async function loadServerData(serverId){
                     const res = await fetch('/api/plugins/eventmanager/server-data/' + serverId);
                     const data = await res.json();
@@ -348,17 +352,7 @@ class EventManagerPlugin {
                     [...channelsSelect.options].forEach(o => {
                         o.selected = (settings.allowedChannels && settings.allowedChannels.includes(o.value));
                     });
-                }
-                serverSelect.addEventListener('change', async ()=>{
-                    currentServer = serverSelect.value;
-                    if(!currentServer){
-                        settingsDiv.style.display='none';
-                        return;
-                    }
-                    await loadServerData(currentServer);
-                    await loadSettings(currentServer);
-                    settingsDiv.style.display='block';
-                });
+                };
                 saveBtn.addEventListener('click', async ()=>{
                     if(!currentServer) return;
                     const body={
@@ -376,7 +370,6 @@ class EventManagerPlugin {
                     await fetch('/api/plugins/eventmanager/sync',{method:'POST'});
                     alert('✅ Synced from Google Sheets.');
                 });
-                loadServers();
             })()`
         };
     }

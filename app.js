@@ -257,47 +257,167 @@ app.get('/api/plugins/components', ensureAuthenticated, (req, res) => {
 // Load and register plugin routes
 pluginLoader.loadPlugins(app, client, ensureAuthenticated, hasAdminPermissions);
 
-
-// --- FIX: Centralized Slash Command Registration ---
-client.once('ready', async () => {
-    console.log(`Bot is ready! Logged in as ${client.user.tag}`);
+// Add new API endpoint for slash command statistics
+app.get('/api/plugins/commands', ensureAuthenticated, (req, res) => {
     try {
-        console.log('Gathering slash commands from all plugins...');
-        const allCommands = pluginLoader.getAllSlashCommands();
-        if (allCommands.length === 0) {
-            console.log('No slash commands to register.');
-            return;
-        }
-
-        console.log(`Found ${allCommands.length} total slash commands. Registering...`);
-        const guilds = client.guilds.cache;
-
-        for (const guild of guilds.values()) {
-            try {
-                await guild.commands.set(allCommands);
-                console.log(`✓ Successfully registered ${allCommands.length} commands for guild: ${guild.name}`);
-            } catch (err) {
-                console.error(`❌ Failed to register commands for guild ${guild.name}:`, err.rawError ? err.rawError.errors : err);
-            }
-        }
-        console.log('🚀 Slash command registration process completed for all guilds.');
+        const stats = pluginLoader.getSlashCommandStats();
+        res.json(stats);
     } catch (error) {
-        console.error('Error during global slash command registration:', error);
+        console.error('Error getting slash command stats:', error);
+        res.status(500).json({ error: 'Failed to get command statistics' });
     }
 });
 
+// --- IMPROVED: Centralized Slash Command Registration ---
+client.once('ready', async () => {
+    console.log(`🤖 Bot is ready! Logged in as ${client.user.tag}`);
+    
+    try {
+        console.log('🎯 Starting centralized slash command registration...');
+        
+        const allCommands = pluginLoader.getAllSlashCommands();
+        
+        if (allCommands.length === 0) {
+            console.log('ℹ️ No slash commands found to register.');
+            return;
+        }
 
-client.on('error', console.error);
+        console.log(`📋 Found ${allCommands.length} commands from ${pluginLoader.getPluginInfo().length} plugins`);
+        
+        // Log command details for debugging
+        if (process.env.NODE_ENV === 'development') {
+            console.log('🔍 Commands to register:');
+            allCommands.forEach(cmd => {
+                console.log(`  - ${cmd.name}: ${cmd.description}`);
+            });
+        }
+
+        const guilds = client.guilds.cache;
+        let successCount = 0;
+        let errorCount = 0;
+
+        // Register commands for each guild
+        for (const guild of guilds.values()) {
+            try {
+                await guild.commands.set(allCommands);
+                successCount++;
+                console.log(`✅ Registered ${allCommands.length} commands for: ${guild.name} (${guild.id})`);
+            } catch (err) {
+                errorCount++;
+                console.error(`❌ Failed to register commands for ${guild.name}:`, err.rawError ? err.rawError.errors : err.message);
+                
+                // Log detailed error in development
+                if (process.env.NODE_ENV === 'development') {
+                    console.error('Full error:', err);
+                }
+            }
+        }
+
+        // Summary
+        console.log(`🎯 Registration complete: ${successCount} guilds successful, ${errorCount} failed`);
+        
+        // Also register globally for new guilds (optional)
+        if (process.env.REGISTER_GLOBAL_COMMANDS === 'true') {
+            try {
+                await client.application.commands.set(allCommands);
+                console.log('🌍 Global commands registered successfully');
+            } catch (err) {
+                console.error('❌ Failed to register global commands:', err.message);
+            }
+        }
+
+    } catch (error) {
+        console.error('💥 Error during slash command registration:', error);
+    }
+});
+
+// --- IMPROVED: Centralized Slash Command Handling ---
+client.on('interactionCreate', async (interaction) => {
+    try {
+        // Handle slash commands through the centralized system
+        if (interaction.isChatInputCommand()) {
+            const handled = await pluginLoader.handleSlashCommandInteraction(interaction);
+            if (!handled) {
+                console.warn(`⚠️ Unhandled slash command: ${interaction.commandName}`);
+            }
+            return;
+        }
+
+        // Handle other interaction types (buttons, modals, etc.)
+        // These still go through individual plugins as they're not commands
+        if (interaction.isButton() || interaction.isModalSubmit() || interaction.isSelectMenu()) {
+            // Let plugins handle their own non-command interactions
+            // This preserves existing functionality for buttons, modals, etc.
+            return;
+        }
+
+    } catch (error) {
+        console.error('Error handling interaction:', error);
+        
+        try {
+            const errorMsg = '❌ An unexpected error occurred while processing your interaction.';
+            if (interaction.replied || interaction.deferred) {
+                await interaction.followUp({ content: errorMsg, ephemeral: true });
+            } else {
+                await interaction.reply({ content: errorMsg, ephemeral: true });
+            }
+        } catch (replyError) {
+            console.error('Failed to send error message:', replyError);
+        }
+    }
+});
+
+// --- NEW: Handle bot joining new guilds ---
+client.on('guildCreate', async (guild) => {
+    console.log(`🏠 Joined new guild: ${guild.name} (${guild.id})`);
+    
+    try {
+        const allCommands = pluginLoader.getAllSlashCommands();
+        if (allCommands.length > 0) {
+            await guild.commands.set(allCommands);
+            console.log(`✅ Registered ${allCommands.length} commands for new guild: ${guild.name}`);
+        }
+    } catch (error) {
+        console.error(`❌ Failed to register commands for new guild ${guild.name}:`, error);
+    }
+});
+
+// --- ENHANCED: Error handling and logging ---
+client.on('error', (error) => {
+    console.error('💥 Discord client error:', error);
+});
+
+client.on('warn', (warning) => {
+    console.warn('⚠️ Discord client warning:', warning);
+});
+
+// Add graceful shutdown handling
+process.on('SIGINT', async () => {
+    console.log('🛑 Received SIGINT, shutting down gracefully...');
+    try {
+        await client.destroy();
+        process.exit(0);
+    } catch (error) {
+        console.error('Error during shutdown:', error);
+        process.exit(1);
+    }
+});
 
 // Start the application
 async function start() {
     try {
+        console.log('🚀 Starting Fuji Fruit Bot...');
+        
         await client.login(process.env.DISCORD_BOT_TOKEN);
+        
         app.listen(PORT, () => {
-            console.log(`Server is running on port ${PORT}`);
+            console.log(`🌐 Web server running on port ${PORT}`);
+            console.log(`📊 Dashboard available at: http://localhost:${PORT}`);
         });
+        
     } catch (error) {
-        console.error('Error starting the application:', error);
+        console.error('💥 Failed to start application:', error);
+        process.exit(1);
     }
 }
 
