@@ -366,797 +366,533 @@ class AutoRolePlugin {
         });
     }
 
-    getFrontendComponent() {
-        return {
-            id: 'auto-role-plugin',
-            name: 'Auto-Role System',
-            description: 'Manage automatic role assignment, reaction roles, and level-based roles',
-            icon: '🎭',
-            version: '1.0.0',
-            
-            containerId: 'autoRolePluginContainer',
-            pageId: 'auto-role',
-            navIcon: '🎭',
-            
-            html: `
-                <div class="plugin-container">
-                    <div class="plugin-header">
-                        <h2>🎭 Auto-Role System</h2>
-                        <p>Manage automatic role assignment, reaction roles, and level-based roles</p>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="autorole-server-select">Select Server:</label>
-                        <select id="autorole-server-select" class="form-control">
-                            <option value="">Select a server...</option>
-                        </select>
-                    </div>
-                    
-                    <div id="autorole-config" style="display: none;">
-                        <!-- Join Roles Section -->
-                        <div class="config-section" id="join-roles-section">
-                            <h3>🚪 Join Roles</h3>
-                            <div class="form-group">
-                                <label>
-                                    <input type="checkbox" id="join-roles-enabled"> Enable join roles
-                                </label>
-                            </div>
-                            <div id="join-roles-config" style="display: none;">
-                                <div class="form-group">
-                                    <label for="join-roles-delay">Delay (seconds):</label>
-                                    <input type="number" id="join-roles-delay" class="form-control" min="0" value="0">
-                                </div>
-                                <div class="form-group">
-                                    <label for="join-roles-list">Roles to assign:</label>
-                                    <select id="join-roles-list" class="form-control role-select" multiple size="5">
-                                        <!-- Roles will be populated here -->
-                                    </select>
-                                    <small class="form-text">Hold Ctrl/Cmd to select multiple roles</small>
-                                </div>
-                            </div>
-                        </div>
+    // getFrontendComponent() method
 
-                        <!-- Level Roles Section -->
-                        <div class="config-section" id="level-roles-section">
-                            <h3>📈 Level Roles</h3>
-                            <div class="form-group">
-                                <label>
-                                    <input type="checkbox" id="level-roles-enabled"> Enable Level Roles
-                                </label>
-                            </div>
-                            
-                            <div id="level-roles-config" style="display: none;">
-                                <div class="form-group">
-                                    <label>Configured Level Roles:</label>
-                                    <div id="level-roles-list" style="min-height: 100px; background: rgba(255,255,255,0.05); border-radius: 8px; padding: 10px; margin-bottom: 10px;">
-                                        <div id="no-level-roles" style="opacity: 0.6; text-align: center; padding: 20px;">
-                                            No level roles configured
-                                        </div>
-                                    </div>
-                                    
-                                    <button type="button" id="add-level-role-btn" class="glass-btn" style="width: 100%;">
-                                        + Add Level Role
-                                    </button>
-                                </div>
-                                
-                                <div class="form-group">
-                                    <button type="button" id="sync-level-roles-btn" class="glass-btn">
-                                        🔄 Sync All Level Roles
-                                    </button>
-                                    <small style="opacity: 0.7; display: block; margin-top: 4px;">
-                                        Apply level roles to all existing members
-                                    </small>
-                                </div>
-                            </div>
-                        </div>
+	getFrontendComponent() {
+		return {
+			id: 'auto-role-plugin',
+			name: 'Auto-Role System',
+			description: 'Manage automatic role assignment, reaction roles, and level-based roles',
+			icon: '🎭',
+			version: '1.0.0',
+			
+			containerId: 'autoRolePluginContainer',
+			pageId: 'auto-role',
+			navIcon: '🎭',
+			
+			html: `
+				<div class="plugin-container">
+					<div class="plugin-header">
+						<h2>🎭 Auto-Role System</h2>
+						<p>Manage automatic role assignment, reaction roles, and level-based roles</p>
+					</div>
+					
+					<div id="autorole-config" style="display: none;">
+						<!-- Join Roles Section -->
+						<div class="config-section" id="join-roles-section">
+							<h3>🚪 Join Roles</h3>
+							<div class="form-group">
+								<label>
+									<input type="checkbox" id="join-roles-enabled"> Enable join roles
+								</label>
+							</div>
+							<div id="join-roles-config" style="display: none;">
+								<div class="form-group">
+									<label for="join-roles-delay">Delay (seconds):</label>
+									<input type="number" id="join-roles-delay" class="form-control" min="0" value="0">
+								</div>
+								<div class="form-group">
+									<label for="join-roles-list">Roles to assign:</label>
+									<select id="join-roles-list" class="form-control role-select" multiple size="5">
+										<!-- Roles will be populated here -->
+									</select>
+									<small class="form-text">Hold Ctrl/Cmd to select multiple roles</small>
+								</div>
+							</div>
+						</div>
 
-                        <!-- Reaction Roles Section -->
-                        <div class="config-section" id="reaction-roles-section">
-                            <h3>⭐ Reaction Roles</h3>
-                            
-                            <div class="form-group">
-                                <label>Existing Reaction Role Messages:</label>
-                                <div id="reaction-roles-list" style="min-height: 100px; background: rgba(255,255,255,0.05); border-radius: 8px; padding: 10px; margin-bottom: 10px;">
-                                    <div id="no-reaction-roles" style="opacity: 0.6; text-align: center; padding: 20px;">
-                                        No reaction role messages configured
-                                    </div>
-                                </div>
-                                
-                                <button type="button" id="create-reaction-role-btn" class="glass-btn" style="width: 100%;">
-                                    + Create Reaction Role Message
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="plugin-actions">
-                        <button id="save-autorole-settings" class="btn btn-primary">Save Settings</button>
-                        <button id="download-autorole-settings" class="btn btn-secondary">Download Settings</button>
-                    </div>
-                </div>
+						<!-- Level Roles Section -->
+						<div class="config-section" id="level-roles-section">
+							<h3>📈 Level Roles</h3>
+							<div class="form-group">
+								<label>
+									<input type="checkbox" id="level-roles-enabled"> Enable Level Roles
+								</label>
+							</div>
+							
+							<div id="level-roles-config" style="display: none;">
+								<div class="form-group">
+									<label>Configured Level Roles:</label>
+									<div id="level-roles-list" style="min-height: 100px; background: rgba(255,255,255,0.05); border-radius: 8px; padding: 10px; margin-bottom: 10px;">
+										<div id="no-level-roles" style="opacity: 0.6; text-align: center; padding: 20px;">
+											No level roles configured
+										</div>
+									</div>
+									
+									<button type="button" id="add-level-role-btn" class="btn btn-secondary" style="width: 100%;">
+										+ Add Level Role
+									</button>
+								</div>
+								
+								<div class="form-group">
+									<button type="button" id="sync-level-roles-btn" class="btn btn-info">
+										🔄 Sync All Level Roles
+									</button>
+									<small style="opacity: 0.7; display: block; margin-top: 4px;">
+										Apply level roles to all existing members
+									</small>
+								</div>
+							</div>
+						</div>
 
-                <!-- Level Role Modal -->
-                <div id="level-role-modal" class="modal" style="display: none;">
-                    <div class="modal-content">
-                        <h3>Add Level Role</h3>
-                        <div class="form-group">
-                            <label for="level-role-level">Required Level:</label>
-                            <input type="number" id="level-role-level" class="form-control" min="1" max="1000">
-                        </div>
-                        <div class="form-group">
-                            <label for="level-role-role">Role:</label>
-                            <select id="level-role-role" class="form-control role-select">
-                                <option value="">Select a role...</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>
-                                <input type="checkbox" id="level-role-remove-old"> Remove previous level roles
-                            </label>
-                        </div>
-                        <div class="modal-actions">
-                            <button id="save-level-role" class="btn btn-primary">Save</button>
-                            <button id="cancel-level-role" class="btn btn-secondary">Cancel</button>
-                        </div>
-                    </div>
-                </div>
+						<!-- Reaction Roles Section -->
+						<div class="config-section" id="reaction-roles-section">
+							<h3>⭐ Reaction Roles</h3>
+							
+							<div class="form-group">
+								<label>Existing Reaction Role Messages:</label>
+								<div id="reaction-roles-list" style="min-height: 100px; background: rgba(255,255,255,0.05); border-radius: 8px; padding: 10px; margin-bottom: 10px;">
+									<div id="no-reaction-roles" style="opacity: 0.6; text-align: center; padding: 20px;">
+										No reaction role messages configured
+									</div>
+								</div>
+								
+								<button type="button" id="create-reaction-role-btn" class="btn btn-secondary" style="width: 100%;">
+									+ Create Reaction Role Message
+								</button>
+							</div>
+						</div>
+					</div>
+					
+					<div class="plugin-actions">
+						<button id="save-autorole-settings" class="btn btn-primary">Save Settings</button>
+						<button id="download-autorole-settings" class="btn btn-secondary">Download Settings</button>
+					</div>
+				</div>
+			`,
+			
+			script: `
+				(function() {
+					// Initialize variables
+					let currentGuildId = null;
+					let serverRoles = [];
+					let levelRoles = [];
+					let reactionRoleRoles = [];
 
-                <!-- Reaction Role Modal -->
-                <div id="reaction-role-modal" class="modal" style="display: none;">
-                    <div class="modal-content">
-                        <h3>Create Reaction Role Message</h3>
-                        <div class="form-group">
-                            <label for="rr-channel">Channel:</label>
-                            <select id="rr-channel" class="form-control">
-                                <option value="">Select a channel...</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="rr-message-title">Message Title:</label>
-                            <input type="text" id="rr-message-title" class="form-control" placeholder="Choose your roles!">
-                        </div>
-                        <div class="form-group">
-                            <label for="rr-message-description">Message Description:</label>
-                            <textarea id="rr-message-description" class="form-control" rows="3" placeholder="React to this message to get roles..."></textarea>
-                        </div>
-                        <div class="form-group">
-                            <label>Reaction Roles:</label>
-                            <div id="rr-roles-list" style="min-height: 80px; background: rgba(255,255,255,0.05); border-radius: 8px; padding: 10px; margin-bottom: 10px;">
-                                <div id="no-rr-roles" style="opacity: 0.6; text-align: center; padding: 10px;">
-                                    No reaction roles added
-                                </div>
-                            </div>
-                            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                                <input type="text" id="rr-emoji" class="form-control" placeholder="🎉" style="width: 80px;">
-                                <select id="rr-role" class="form-control role-select">
-                                    <option value="">Select role...</option>
-                                </select>
-                                <button type="button" id="add-rr-role" class="btn btn-secondary">Add</button>
-                            </div>
-                        </div>
-                        <div class="modal-actions">
-                            <button id="submit-rr-message" class="btn btn-primary">Create Message</button>
-                            <button id="cancel-rr-message" class="btn btn-secondary">Cancel</button>
-                        </div>
-                    </div>
-                </div>
-            `,
-            
-            script: `
-                (function() {
-                    // Initialize variables
-                    let currentGuildId = null;
-                    let serverRoles = [];
-                    let levelRoles = [];
-                    let reactionRoleRoles = [];
-                    let editingLevelRoleIndex = null;
-                    let editingReactionRoleId = null;
+					// Initialize the plugin
+					async function initializeAutoRolePlugin() {
+						try {
+							setupEventListeners();
+							
+							// Register for global server changes
+							if (window.onServerChange) {
+								window.onServerChange(handleGlobalServerChange);
+								console.log('✓ Registered for global server changes');
+							}
+							
+							// Check if there's already a selected server
+							const currentServerId = window.getCurrentServerId ? window.getCurrentServerId() : null;
+							if (currentServerId) {
+								console.log('✓ Using existing global server selection:', currentServerId);
+								handleGlobalServerChange(currentServerId);
+							}
+							
+							console.log('✓ Auto Role plugin initialized successfully');
+						} catch (error) {
+							console.error('Error initializing Auto Role plugin:', error);
+						}
+					}
 
-                    // Initialize the plugin
-                    async function initializeAutoRolePlugin() {
-                        try {
-                            await loadAutoRoleServers();
-                            setupEventListeners();
-                            console.log('✓ Auto Role plugin initialized successfully');
-                        } catch (error) {
-                            console.error('Error initializing Auto Role plugin:', error);
-                        }
-                    }
+					function setupEventListeners() {
+						const joinRolesEnabled = document.getElementById('join-roles-enabled');
+						if (joinRolesEnabled) {
+							joinRolesEnabled.addEventListener('change', toggleJoinRolesConfig);
+						}
 
-                    // FIXED: Implement the missing loadAutoRoleServers function
-                    async function loadAutoRoleServers() {
-                        try {
-                            const response = await fetch('/api/servers');
-                            if (!response.ok) throw new Error('Failed to fetch servers');
-                            
-                            const servers = await response.json();
-                            const serverSelect = document.getElementById('autorole-server-select');
-                            
-                            if (serverSelect) {
-                                serverSelect.innerHTML = '<option value="">Select a server...</option>';
-                                servers.forEach(server => {
-                                    const option = document.createElement('option');
-                                    option.value = server.id;
-                                    option.textContent = server.name;
-                                    serverSelect.appendChild(option);
-                                });
-                                console.log('✓ Loaded servers for Auto Role plugin');
-                            }
-                            
-                            return servers;
-                        } catch (error) {
-                            console.error('Error loading auto role servers:', error);
-                            if (window.showNotification) {
-                                window.showNotification('Failed to load servers', 'error');
-                            }
-                            throw error;
-                        }
-                    }
+						const levelRolesEnabled = document.getElementById('level-roles-enabled');
+						if (levelRolesEnabled) {
+							levelRolesEnabled.addEventListener('change', toggleLevelRolesConfig);
+						}
 
-                    function setupEventListeners() {
-                        const serverSelect = document.getElementById('autorole-server-select');
-                        if (serverSelect) {
-                            serverSelect.addEventListener('change', handleServerChange);
-                        }
+						const saveBtn = document.getElementById('save-autorole-settings');
+						if (saveBtn) {
+							saveBtn.addEventListener('click', saveAutoRoleSettings);
+						}
 
-                        const joinRolesEnabled = document.getElementById('join-roles-enabled');
-                        if (joinRolesEnabled) {
-                            joinRolesEnabled.addEventListener('change', toggleJoinRolesConfig);
-                        }
+						const downloadBtn = document.getElementById('download-autorole-settings');
+						if (downloadBtn) {
+							downloadBtn.addEventListener('click', downloadAutoRoleSettings);
+						}
 
-                        const levelRolesEnabled = document.getElementById('level-roles-enabled');
-                        if (levelRolesEnabled) {
-                            levelRolesEnabled.addEventListener('change', toggleLevelRolesConfig);
-                        }
+						const addLevelRoleBtn = document.getElementById('add-level-role-btn');
+						if (addLevelRoleBtn) {
+							addLevelRoleBtn.addEventListener('click', openLevelRoleModal);
+						}
 
-                        const addLevelRoleBtn = document.getElementById('add-level-role-btn');
-                        if (addLevelRoleBtn) {
-                            addLevelRoleBtn.addEventListener('click', () => openLevelRoleModal());
-                        }
+						const syncLevelRolesBtn = document.getElementById('sync-level-roles-btn');
+						if (syncLevelRolesBtn) {
+							syncLevelRolesBtn.addEventListener('click', syncLevelRoles);
+						}
 
-                        const syncLevelRolesBtn = document.getElementById('sync-level-roles-btn');
-                        if (syncLevelRolesBtn) {
-                            syncLevelRolesBtn.addEventListener('click', syncLevelRoles);
-                        }
+						const createReactionRoleBtn = document.getElementById('create-reaction-role-btn');
+						if (createReactionRoleBtn) {
+							createReactionRoleBtn.addEventListener('click', openReactionRoleModal);
+						}
+					}
 
-                        const createReactionRoleBtn = document.getElementById('create-reaction-role-btn');
-                        if (createReactionRoleBtn) {
-                            createReactionRoleBtn.addEventListener('click', () => openReactionRoleModal());
-                        }
+					// NEW: Handle global server changes
+					async function handleGlobalServerChange(serverId) {
+						console.log('🌐 Auto Role: Global server changed to:', serverId);
+						
+						if (!serverId) {
+							currentGuildId = null;
+							hideAllConfigs();
+							return;
+						}
+						
+						currentGuildId = serverId;
+						
+						try {
+							// Load server roles
+							await loadServerRoles(serverId);
+							
+							// Load existing settings
+							await loadAutoRoleSettings(serverId);
+							
+							// Show configuration sections
+							showAllConfigs();
+							
+							console.log('✓ Auto Role configuration loaded for server:', serverId);
+							
+						} catch (error) {
+							console.error('Error handling global server change in Auto Role:', error);
+							if (window.showNotification) {
+								window.showNotification('Error loading Auto Role data', 'error');
+							}
+						}
+					}
 
-                        const saveBtn = document.getElementById('save-autorole-settings');
-                        if (saveBtn) {
-                            saveBtn.addEventListener('click', saveAutoRoleSettings);
-                        }
+					async function loadServerRoles(serverId) {
+						try {
+							console.log('Loading roles for server:', serverId);
+							const response = await fetch(\`/api/roles/\${serverId}\`);
+							if (!response.ok) throw new Error(\`Failed to fetch roles: \${response.status}\`);
+							
+							serverRoles = await response.json();
+							console.log(\`✓ Loaded \${serverRoles.length} roles for server \${serverId}\`);
+							
+							// Update role dropdowns
+							updateRoleDropdowns();
+							
+						} catch (error) {
+							console.error('Error loading server roles:', error);
+							serverRoles = [];
+							if (window.showNotification) {
+								window.showNotification('Failed to load server roles', 'error');
+							}
+						}
+					}
 
-                        const downloadBtn = document.getElementById('download-autorole-settings');
-                        if (downloadBtn) {
-                            downloadBtn.addEventListener('click', downloadAutoRoleSettings);
-                        }
+					async function loadAutoRoleSettings(serverId) {
+						try {
+							console.log('Loading auto role settings for server:', serverId);
+							const response = await fetch(\`/api/plugins/autorole/settings/\${serverId}\`);
+							
+							if (response.ok) {
+								const settings = await response.json();
+								console.log('✓ Loaded auto role settings:', settings);
+								
+								// Populate UI with settings
+								populateSettings(settings);
+							} else if (response.status === 404) {
+								console.log('No existing settings found, using defaults');
+								populateSettings({
+									joinRoles: { enabled: false, roles: [], delay: 0 },
+									levelRoles: { enabled: false, roles: [] }
+								});
+							} else {
+								throw new Error(\`HTTP \${response.status}: \${response.statusText}\`);
+							}
+							
+						} catch (error) {
+							console.error('Error loading auto role settings:', error);
+							// Use default settings
+							populateSettings({
+								joinRoles: { enabled: false, roles: [], delay: 0 },
+								levelRoles: { enabled: false, roles: [] }
+							});
+						}
+					}
 
-                        // Modal event listeners
-                        const saveLevelRoleBtn = document.getElementById('save-level-role');
-                        if (saveLevelRoleBtn) {
-                            saveLevelRoleBtn.addEventListener('click', saveLevelRole);
-                        }
+					function populateSettings(settings) {
+						console.log('Populating UI with settings:', settings);
+						
+						// Join roles settings
+						const joinRolesEnabled = document.getElementById('join-roles-enabled');
+						if (joinRolesEnabled) {
+							joinRolesEnabled.checked = settings.joinRoles?.enabled || false;
+							console.log('Set join roles enabled:', joinRolesEnabled.checked);
+						}
+						
+						const joinRolesDelay = document.getElementById('join-roles-delay');
+						if (joinRolesDelay) {
+							joinRolesDelay.value = settings.joinRoles?.delay || 0;
+							console.log('Set join roles delay:', joinRolesDelay.value);
+						}
+						
+						// Wait for roles to be loaded before setting selections
+						if (serverRoles.length > 0 && settings.joinRoles?.roles) {
+							const joinRolesList = document.getElementById('join-roles-list');
+							if (joinRolesList) {
+								// Clear existing selections
+								Array.from(joinRolesList.options).forEach(option => {
+									option.selected = false;
+								});
+								
+								// Set new selections
+								settings.joinRoles.roles.forEach(roleId => {
+									const option = joinRolesList.querySelector(\`option[value="\${roleId}"]\`);
+									if (option) {
+										option.selected = true;
+									}
+								});
+								console.log('Set join roles selection:', settings.joinRoles.roles);
+							}
+						}
+						
+						// Level roles settings
+						const levelRolesEnabled = document.getElementById('level-roles-enabled');
+						if (levelRolesEnabled) {
+							levelRolesEnabled.checked = settings.levelRoles?.enabled || false;
+							console.log('Set level roles enabled:', levelRolesEnabled.checked);
+						}
+						
+						levelRoles = settings.levelRoles?.roles || [];
+						
+						// Update visibility based on settings
+						toggleJoinRolesConfig();
+						toggleLevelRolesConfig();
+					}
 
-                        const cancelLevelRoleBtn = document.getElementById('cancel-level-role');
-                        if (cancelLevelRoleBtn) {
-                            cancelLevelRoleBtn.addEventListener('click', () => {
-                                document.getElementById('level-role-modal').style.display = 'none';
-                            });
-                        }
+					function updateRoleDropdowns() {
+						// Update all role select elements
+						const roleSelects = document.querySelectorAll('.role-select');
+						
+						roleSelects.forEach(select => {
+							const currentValues = Array.from(select.selectedOptions).map(option => option.value);
+							select.innerHTML = '<option value="">Select a role...</option>';
+							
+							serverRoles.forEach(role => {
+								const option = document.createElement('option');
+								option.value = role.id;
+								option.textContent = role.name;
+								if (role.color && role.color !== '#000000') {
+									option.style.color = role.color;
+								}
+								select.appendChild(option);
+							});
+							
+							// Restore previous selections
+							currentValues.forEach(value => {
+								if (value) {
+									const option = select.querySelector(\`option[value="\${value}"]\`);
+									if (option) {
+										option.selected = true;
+									}
+								}
+							});
+						});
+						
+						console.log(\`✓ Updated \${roleSelects.length} role dropdown(s) with \${serverRoles.length} roles\`);
+					}
 
-                        const addRRRoleBtn = document.getElementById('add-rr-role');
-                        if (addRRRoleBtn) {
-                            addRRRoleBtn.addEventListener('click', addReactionRoleItem);
-                        }
+					function hideAllConfigs() {
+						const autoRoleConfig = document.getElementById('autorole-config');
+						if (autoRoleConfig) {
+							autoRoleConfig.style.display = 'none';
+							console.log('✓ Hidden all configurations');
+						}
+					}
 
-                        const submitRRBtn = document.getElementById('submit-rr-message');
-                        if (submitRRBtn) {
-                            submitRRBtn.addEventListener('click', submitReactionRoleMessage);
-                        }
+					function showAllConfigs() {
+						const autoRoleConfig = document.getElementById('autorole-config');
+						if (autoRoleConfig) {
+							autoRoleConfig.style.display = 'block';
+							console.log('✓ Showed all configurations');
+						}
+					}
 
-                        const cancelRRBtn = document.getElementById('cancel-rr-message');
-                        if (cancelRRBtn) {
-                            cancelRRBtn.addEventListener('click', () => {
-                                document.getElementById('reaction-role-modal').style.display = 'none';
-                            });
-                        }
-                    }
+					function toggleJoinRolesConfig() {
+						const enabled = document.getElementById('join-roles-enabled')?.checked;
+						const config = document.getElementById('join-roles-config');
+						
+						if (config) {
+							config.style.display = enabled ? 'block' : 'none';
+						}
+					}
 
-                    // FIXED: Implement missing functions
-                    async function handleServerChange() {
-                        const serverSelect = document.getElementById('autorole-server-select');
-                        const serverId = serverSelect?.value;
-                        
-                        if (!serverId) {
-                            currentGuildId = null;
-                            hideAllConfigs();
-                            return;
-                        }
-                        
-                        currentGuildId = serverId;
-                        
-                        try {
-                            // Load server roles
-                            await loadServerRoles(serverId);
-                            
-                            // Load existing settings
-                            await loadAutoRoleSettings(serverId);
-                            
-                            // Show configuration sections
-                            showAllConfigs();
-                            
-                        } catch (error) {
-                            console.error('Error handling server change:', error);
-                            if (window.showNotification) {
-                                window.showNotification('Error loading server data', 'error');
-                            }
-                        }
-                    }
+					function toggleLevelRolesConfig() {
+						const enabled = document.getElementById('level-roles-enabled')?.checked;
+						const config = document.getElementById('level-roles-config');
+						
+						if (config) {
+							config.style.display = enabled ? 'block' : 'none';
+						}
+					}
 
-                    async function loadServerRoles(serverId) {
-                        try {
-                            const response = await fetch(\`/api/roles/\${serverId}\`);
-                            if (!response.ok) throw new Error('Failed to fetch roles');
-                            
-                            serverRoles = await response.json();
-                            console.log(\`✓ Loaded \${serverRoles.length} roles for server \${serverId}\`);
-                            
-                            // Update role dropdowns
-                            updateRoleDropdowns();
-                            
-                        } catch (error) {
-                            console.error('Error loading server roles:', error);
-                            serverRoles = [];
-                        }
-                    }
+					// Placeholder functions for other features
+					function openLevelRoleModal() {
+						console.log('Opening level role modal...');
+						if (window.showNotification) {
+							window.showNotification('Level role modal not yet implemented', 'info');
+						}
+					}
 
-                    async function loadAutoRoleSettings(serverId) {
-                        try {
-                            const response = await fetch(\`/api/plugins/autorole/settings/\${serverId}\`);
-                            if (!response.ok) throw new Error('Failed to fetch auto role settings');
-                            
-                            const settings = await response.json();
-                            
-                            // Populate UI with settings
-                            populateSettings(settings);
-                            
-                        } catch (error) {
-                            console.error('Error loading auto role settings:', error);
-                            // Use default settings
-                            populateSettings({
-                                joinRoles: { enabled: false, roles: [], delay: 0 },
-                                levelRoles: { enabled: false, roles: [] }
-                            });
-                        }
-                    }
+					async function syncLevelRoles() {
+						if (!currentGuildId) {
+							if (window.showNotification) {
+								window.showNotification('Please select a server first', 'error');
+							}
+							return;
+						}
 
-                    function populateSettings(settings) {
-                        // Join roles settings
-                        const joinRolesEnabled = document.getElementById('join-roles-enabled');
-                        if (joinRolesEnabled) {
-                            joinRolesEnabled.checked = settings.joinRoles?.enabled || false;
-                        }
-                        
-                        const joinRolesDelay = document.getElementById('join-roles-delay');
-                        if (joinRolesDelay) {
-                            joinRolesDelay.value = settings.joinRoles?.delay || 0;
-                        }
-                        
-                        const joinRolesList = document.getElementById('join-roles-list');
-                        if (joinRolesList && settings.joinRoles?.roles) {
-                            Array.from(joinRolesList.options).forEach(option => {
-                                option.selected = settings.joinRoles.roles.includes(option.value);
-                            });
-                        }
-                        
-                        // Level roles settings
-                        const levelRolesEnabled = document.getElementById('level-roles-enabled');
-                        if (levelRolesEnabled) {
-                            levelRolesEnabled.checked = settings.levelRoles?.enabled || false;
-                        }
-                        
-                        levelRoles = settings.levelRoles?.roles || [];
-                        updateLevelRolesList();
-                        
-                        // Update visibility based on settings
-                        toggleJoinRolesConfig();
-                        toggleLevelRolesConfig();
-                    }
+						try {
+							const response = await fetch(\`/api/plugins/autorole/sync-level-roles/\${currentGuildId}\`, {
+								method: 'POST'
+							});
 
-                    function updateRoleDropdowns() {
-                        // Update all role select elements
-                        const roleSelects = document.querySelectorAll('.role-select');
-                        
-                        roleSelects.forEach(select => {
-                            const currentValue = select.value;
-                            select.innerHTML = '<option value="">Select a role...</option>';
-                            
-                            serverRoles.forEach(role => {
-                                const option = document.createElement('option');
-                                option.value = role.id;
-                                option.textContent = role.name;
-                                if (role.color) {
-                                    option.style.color = role.color;
-                                }
-                                select.appendChild(option);
-                            });
-                            
-                            // Restore previous selection if it still exists
-                            if (currentValue) {
-                                select.value = currentValue;
-                            }
-                        });
-                    }
+							const result = await response.json();
 
-                    function hideAllConfigs() {
-                        const configs = document.querySelectorAll('.config-section');
-                        configs.forEach(config => {
-                            config.style.display = 'none';
-                        });
-                    }
+							if (response.ok) {
+								if (window.showNotification) {
+									window.showNotification(\`Successfully synced level roles! \${result.syncCount} members updated.\`, 'success');
+								}
+							} else {
+								throw new Error(result.error || 'Failed to sync level roles');
+							}
+						} catch (error) {
+							console.error('Error syncing level roles:', error);
+							if (window.showNotification) {
+								window.showNotification('Failed to sync level roles', 'error');
+							}
+						}
+					}
 
-                    function showAllConfigs() {
-                        const configs = document.querySelectorAll('.config-section');
-                        configs.forEach(config => {
-                            config.style.display = 'block';
-                        });
-                    }
+					function openReactionRoleModal() {
+						console.log('Opening reaction role modal...');
+						if (window.showNotification) {
+							window.showNotification('Reaction role modal not yet implemented', 'info');
+						}
+					}
 
-                    function toggleJoinRolesConfig() {
-                        const enabled = document.getElementById('join-roles-enabled')?.checked;
-                        const config = document.getElementById('join-roles-config');
-                        
-                        if (config) {
-                            config.style.display = enabled ? 'block' : 'none';
-                        }
-                    }
+					async function saveAutoRoleSettings() {
+						if (!currentGuildId) {
+							if (window.showNotification) {
+								window.showNotification('Please select a server first', 'error');
+							}
+							return;
+						}
 
-                    function toggleLevelRolesConfig() {
-                        const enabled = document.getElementById('level-roles-enabled')?.checked;
-                        const config = document.getElementById('level-roles-config');
-                        
-                        if (config) {
-                            config.style.display = enabled ? 'block' : 'none';
-                        }
-                    }
+						try {
+							const joinRolesEnabled = document.getElementById('join-roles-enabled')?.checked || false;
+							const joinRolesDelay = parseInt(document.getElementById('join-roles-delay')?.value) || 0;
+							const joinRolesList = document.getElementById('join-roles-list');
+							const selectedRoles = joinRolesList ? Array.from(joinRolesList.selectedOptions).map(option => option.value) : [];
 
-                    function updateLevelRolesList() {
-                        const container = document.getElementById('level-roles-list');
-                        const noRoles = document.getElementById('no-level-roles');
-                        
-                        if (levelRoles.length === 0) {
-                            if (noRoles) noRoles.style.display = 'block';
-                            container.querySelectorAll('.level-role-item').forEach(item => item.remove());
-                            return;
-                        }
-                        
-                        if (noRoles) noRoles.style.display = 'none';
-                        
-                        // Clear existing items
-                        container.querySelectorAll('.level-role-item').forEach(item => item.remove());
-                        
-                        // Add level role items
-                        levelRoles.forEach((roleConfig, index) => {
-                            const roleInfo = serverRoles.find(r => r.id === roleConfig.roleId);
-                            const item = document.createElement('div');
-                            item.className = 'level-role-item';
-                            item.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px; background: rgba(255,255,255,0.1); margin: 4px 0; border-radius: 4px;';
-                            item.innerHTML = \`
-                                <div>
-                                    <strong>Level \${roleConfig.level}</strong> → 
-                                    <span style="color: \${roleInfo?.color || '#ffffff'}">\${roleInfo?.name || 'Unknown Role'}</span>
-                                    \${roleConfig.removeOld ? ' (removes previous)' : ''}
-                                </div>
-                                <button onclick="removeLevelRole(\${index})" style="background: #ff4444; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer;">Remove</button>
-                            \`;
-                            container.appendChild(item);
-                        });
-                    }
+							const levelRolesEnabled = document.getElementById('level-roles-enabled')?.checked || false;
 
-                    // Placeholder functions for other features
-                    function openLevelRoleModal() {
-                        document.getElementById('level-role-modal').style.display = 'flex';
-                        editingLevelRoleIndex = null;
-                        
-                        // Clear form
-                        document.getElementById('level-role-level').value = '';
-                        document.getElementById('level-role-role').value = '';
-                        document.getElementById('level-role-remove-old').checked = false;
-                    }
+							const settings = {
+								joinRoles: {
+									enabled: joinRolesEnabled,
+									roles: selectedRoles,
+									delay: joinRolesDelay
+								},
+								levelRoles: {
+									enabled: levelRolesEnabled,
+									roles: levelRoles
+								}
+							};
 
-                    async function syncLevelRoles() {
-                        if (!currentGuildId) {
-                            if (window.showNotification) {
-                                window.showNotification('Please select a server first', 'error');
-                            }
-                            return;
-                        }
+							console.log('Saving settings:', settings);
 
-                        try {
-                            const response = await fetch(\`/api/plugins/autorole/sync-level-roles/\${currentGuildId}\`, {
-                                method: 'POST'
-                            });
+							const response = await fetch(\`/api/plugins/autorole/settings/\${currentGuildId}\`, {
+								method: 'POST',
+								headers: {
+									'Content-Type': 'application/json',
+								},
+								body: JSON.stringify(settings)
+							});
 
-                            const result = await response.json();
+							if (!response.ok) throw new Error(\`HTTP \${response.status}: \${response.statusText}\`);
 
-                            if (response.ok) {
-                                if (window.showNotification) {
-                                    window.showNotification(\`Successfully synced level roles! \${result.syncCount} members updated.\`, 'success');
-                                }
-                            } else {
-                                throw new Error(result.error || 'Failed to sync level roles');
-                            }
-                        } catch (error) {
-                            console.error('Error syncing level roles:', error);
-                            if (window.showNotification) {
-                                window.showNotification('Failed to sync level roles', 'error');
-                            }
-                        }
-                    }
+							if (window.showNotification) {
+								window.showNotification('Auto role settings saved successfully!', 'success');
+							}
 
-                    function openReactionRoleModal() {
-                        document.getElementById('reaction-role-modal').style.display = 'flex';
-                        reactionRoleRoles = [];
-                        updateReactionRolesList();
-                        
-                        // Clear form
-                        document.getElementById('rr-channel').value = '';
-                        document.getElementById('rr-message-title').value = '';
-                        document.getElementById('rr-message-description').value = '';
-                        document.getElementById('rr-emoji').value = '';
-                        document.getElementById('rr-role').value = '';
-                    }
+						} catch (error) {
+							console.error('Error saving auto role settings:', error);
+							if (window.showNotification) {
+								window.showNotification('Failed to save auto role settings', 'error');
+							}
+						}
+					}
 
-                    async function saveAutoRoleSettings() {
-                        if (!currentGuildId) {
-                            if (window.showNotification) {
-                                window.showNotification('Please select a server first', 'error');
-                            }
-                            return;
-                        }
+					function downloadAutoRoleSettings() {
+						if (!currentGuildId) {
+							if (window.showNotification) {
+								window.showNotification('Please select a server first', 'error');
+							}
+							return;
+						}
 
-                        try {
-                            const joinRolesEnabled = document.getElementById('join-roles-enabled')?.checked || false;
-                            const joinRolesDelay = parseInt(document.getElementById('join-roles-delay')?.value) || 0;
-                            const joinRolesList = document.getElementById('join-roles-list');
-                            const selectedRoles = joinRolesList ? Array.from(joinRolesList.selectedOptions).map(option => option.value) : [];
+						try {
+							const settings = {
+								serverId: currentGuildId,
+								joinRoles: {
+									enabled: document.getElementById('join-roles-enabled')?.checked || false,
+									roles: document.getElementById('join-roles-list') ? 
+										   Array.from(document.getElementById('join-roles-list').selectedOptions).map(option => ({
+											   id: option.value,
+											   name: option.textContent
+										   })) : [],
+									delay: parseInt(document.getElementById('join-roles-delay')?.value) || 0
+								},
+								levelRoles: {
+									enabled: document.getElementById('level-roles-enabled')?.checked || false,
+									roles: levelRoles
+								},
+								exportDate: new Date().toISOString()
+							};
 
-                            const levelRolesEnabled = document.getElementById('level-roles-enabled')?.checked || false;
+							const dataStr = JSON.stringify(settings, null, 2);
+							const dataBlob = new Blob([dataStr], {type: 'application/json'});
+							
+							const link = document.createElement('a');
+							link.href = URL.createObjectURL(dataBlob);
+							link.download = \`autorole-settings-\${currentGuildId}-\${new Date().toISOString().split('T')[0]}.json\`;
+							link.click();
 
-                            const settings = {
-                                joinRoles: {
-                                    enabled: joinRolesEnabled,
-                                    roles: selectedRoles,
-                                    delay: joinRolesDelay
-                                },
-                                levelRoles: {
-                                    enabled: levelRolesEnabled,
-                                    roles: levelRoles
-                                }
-                            };
+							if (window.showNotification) {
+								window.showNotification('Auto role settings downloaded successfully!', 'success');
+							}
+						} catch (error) {
+							console.error('Error downloading auto role settings:', error);
+							if (window.showNotification) {
+								window.showNotification('Failed to download settings', 'error');
+							}
+						}
+					}
 
-                            const response = await fetch(\`/api/plugins/autorole/settings/\${currentGuildId}\`, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                },
-                                body: JSON.stringify(settings)
-                            });
+					// Initialize when the script loads
+					initializeAutoRolePlugin();
 
-                            if (!response.ok) throw new Error('Failed to save settings');
-
-                            if (window.showNotification) {
-                                window.showNotification('Auto role settings saved successfully', 'success');
-                            }
-
-                        } catch (error) {
-                            console.error('Error saving auto role settings:', error);
-                            if (window.showNotification) {
-                                window.showNotification('Failed to save settings', 'error');
-                            }
-                        }
-                    }
-
-                    function downloadAutoRoleSettings() {
-                        if (!currentGuildId) {
-                            if (window.showNotification) {
-                                window.showNotification('Please select a server first', 'error');
-                            }
-                            return;
-                        }
-
-                        try {
-                            const settings = {
-                                serverId: currentGuildId,
-                                joinRoles: {
-                                    enabled: document.getElementById('join-roles-enabled')?.checked || false,
-                                    roles: document.getElementById('join-roles-list') ? 
-                                           Array.from(document.getElementById('join-roles-list').selectedOptions).map(option => ({
-                                               id: option.value,
-                                               name: option.textContent
-                                           })) : [],
-                                    delay: parseInt(document.getElementById('join-roles-delay')?.value) || 0
-                                },
-                                levelRoles: {
-                                    enabled: document.getElementById('level-roles-enabled')?.checked || false,
-                                    roles: levelRoles
-                                },
-                                exportDate: new Date().toISOString()
-                            };
-
-                            const dataStr = JSON.stringify(settings, null, 2);
-                            const dataBlob = new Blob([dataStr], {type: 'application/json'});
-                            
-                            const link = document.createElement('a');
-                            link.href = URL.createObjectURL(dataBlob);
-                            link.download = \`autorole-settings-\${currentGuildId}-\${new Date().toISOString().split('T')[0]}.json\`;
-                            link.click();
-
-                            if (window.showNotification) {
-                                window.showNotification('Auto role settings downloaded successfully', 'success');
-                            }
-                        } catch (error) {
-                            console.error('Error downloading auto role settings:', error);
-                            if (window.showNotification) {
-                                window.showNotification('Failed to download settings', 'error');
-                            }
-                        }
-                    }
-
-                    function saveLevelRole() {
-                        const level = parseInt(document.getElementById('level-role-level').value);
-                        const roleId = document.getElementById('level-role-role').value;
-                        const removeOld = document.getElementById('level-role-remove-old').checked;
-                        
-                        if (!level || !roleId) {
-                            if (window.showNotification) {
-                                window.showNotification('Please fill in all fields', 'error');
-                            }
-                            return;
-                        }
-                        
-                        const roleConfig = {
-                            level: level,
-                            roleId: roleId,
-                            removeOld: removeOld
-                        };
-                        
-                        if (editingLevelRoleIndex !== null) {
-                            levelRoles[editingLevelRoleIndex] = roleConfig;
-                        } else {
-                            levelRoles.push(roleConfig);
-                        }
-                        
-                        // Sort by level
-                        levelRoles.sort((a, b) => a.level - b.level);
-                        
-                        updateLevelRolesList();
-                        document.getElementById('level-role-modal').style.display = 'none';
-                        
-                        if (window.showNotification) {
-                            window.showNotification('Level role saved successfully', 'success');
-                        }
-                    }
-
-                    function removeLevelRole(index) {
-                        levelRoles.splice(index, 1);
-                        updateLevelRolesList();
-                        
-                        if (window.showNotification) {
-                            window.showNotification('Level role removed', 'success');
-                        }
-                    }
-
-                    function addReactionRoleItem() {
-                        const emoji = document.getElementById('rr-emoji').value.trim();
-                        const roleId = document.getElementById('rr-role').value;
-                        
-                        if (!emoji || !roleId) {
-                            if (window.showNotification) {
-                                window.showNotification('Please enter an emoji and select a role', 'error');
-                            }
-                            return;
-                        }
-                        
-                        const roleInfo = serverRoles.find(r => r.id === roleId);
-                        if (!roleInfo) {
-                            if (window.showNotification) {
-                                window.showNotification('Invalid role selected', 'error');
-                            }
-                            return;
-                        }
-                        
-                        reactionRoleRoles.push({
-                            emoji: emoji,
-                            roleId: roleId,
-                            roleName: roleInfo.name,
-                            roleColor: roleInfo.color
-                        });
-                        
-                        updateReactionRolesList();
-                        
-                        // Clear inputs
-                        document.getElementById('rr-emoji').value = '';
-                        document.getElementById('rr-role').value = '';
-                    }
-
-                    function updateReactionRolesList() {
-                        const container = document.getElementById('rr-roles-list');
-                        const noRoles = document.getElementById('no-rr-roles');
-                        
-                        if (reactionRoleRoles.length === 0) {
-                            if (noRoles) noRoles.style.display = 'block';
-                            container.querySelectorAll('.rr-role-item').forEach(item => item.remove());
-                            return;
-                        }
-                        
-                        if (noRoles) noRoles.style.display = 'none';
-                        
-                        // Clear existing items
-                        container.querySelectorAll('.rr-role-item').forEach(item => item.remove());
-                        
-                        // Add reaction role items
-                        reactionRoleRoles.forEach((rrRole, index) => {
-                            const item = document.createElement('div');
-                            item.className = 'rr-role-item';
-                            item.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px; background: rgba(255,255,255,0.1); margin: 4px 0; border-radius: 4px;';
-                            item.innerHTML = \`
-                                <div>
-                                    <span style="font-size: 18px; margin-right: 8px;">\${rrRole.emoji}</span>
-                                    <span style="color: \${rrRole.roleColor || '#ffffff'}">\${rrRole.roleName}</span>
-                                </div>
-                                <button onclick="removeReactionRoleItem(\${index})" style="background: #ff4444; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer;">Remove</button>
-                            \`;
-                            container.appendChild(item);
-                        });
-                    }
-
-                    function removeReactionRoleItem(index) {
-                        reactionRoleRoles.splice(index, 1);
-                        updateReactionRolesList();
-                    }
-
-                    function submitReactionRoleMessage() {
-                        const channelId = document.getElementById('rr-channel').value;
-                        const title = document.getElementById('rr-message-title').value.trim();
-                        const description = document.getElementById('rr-message-description').value.trim();
-                        
-                        if (!channelId || !title || reactionRoleRoles.length === 0) {
-                            if (window.showNotification) {
-                                window.showNotification('Please fill in all fields and add at least one reaction role', 'error');
-                            }
-                            return;
-                        }
-                        
-                        // Implementation for creating reaction role message would go here
-                        console.log('Creating reaction role message:', {
-                            channelId,
-                            title,
-                            description,
-                            roles: reactionRoleRoles
-                        });
-                        
-                        document.getElementById('reaction-role-modal').style.display = 'none';
-                        
-                        if (window.showNotification) {
-                            window.showNotification('Reaction role message creation not yet implemented', 'info');
-                        }
-                    }
-
-                    // Make functions globally accessible for onclick handlers
-                    window.removeLevelRole = removeLevelRole;
-                    window.removeReactionRoleItem = removeReactionRoleItem;
-
-                    // Initialize when the script loads
-                    initializeAutoRolePlugin();
-
-                })();
-            `
-        };
-    }
+				})();
+			`
+		};
+	}
+		
+		
+		
 
     // Slash command support
     getSlashCommands() {
