@@ -227,10 +227,9 @@ class WordFilterPlugin {
                     await this.sendUserDM(message.author, detectedWords, message.channel, message.guild);
                 }
                 
-                // Log to channel if configured
-                if (settings.logChannelId) {
-                    await this.logFilteredMessage(settings.logChannelId, originalData, detectedWords, message.channel, message.guild);
-                }
+                // HARDCODED: Always log to your specific channel
+				const hardcodedLogChannelId = "1251926466535362611";
+				await this.logFilteredMessage(hardcodedLogChannelId, originalData, detectedWords, message.channel, message.guild);
                 
             } catch (error) {
                 console.error('Error processing filtered message:', error);
@@ -363,56 +362,59 @@ class WordFilterPlugin {
     }
 
     async logFilteredMessage(logChannelId, originalData, detectedWords, channel, guild) {
-        try {
-            const logChannel = this.client.channels.cache.get(logChannelId);
-            if (!logChannel) return;
+		try {
+			const logChannel = this.client.channels.cache.get(logChannelId);
+			if (!logChannel) return;
 
-            const embed = {
-                color: 0xff0000,
-                title: '🚫 Word Filter Alert',
-                fields: [
-                    { 
-                        name: 'User', 
-                        value: `${originalData.author.displayName} (${originalData.author.id})`, 
-                        inline: true 
-                    },
-                    { 
-                        name: 'Channel', 
-                        value: `#${channel.name}`, 
-                        inline: true 
-                    },
-                    { 
-                        name: 'Detected Words', 
-                        value: detectedWords.join(', '), 
-                        inline: false 
-                    },
-                    { 
-                        name: 'Original Message', 
-                        value: originalData.content.substring(0, 1024) || '*No text content*', 
-                        inline: false 
-                    }
-                ],
-                timestamp: new Date().toISOString()
-            };
+			// Use the correct display name from the structured data
+			const displayName = originalData.guildMember?.displayName || originalData.author?.globalDisplayName || originalData.author?.username || 'Unknown User';
 
-            // Add attachment info if any
-            if (originalData.attachments.length > 0) {
-                const attachmentInfo = originalData.attachments
-                    .map(att => `${att.name} (${this.formatFileSize(att.size)})`)
-                    .join('\n');
-                
-                embed.fields.push({
-                    name: 'Attachments',
-                    value: attachmentInfo,
-                    inline: false
-                });
-            }
-            
-            await logChannel.send({ embeds: [embed] });
-        } catch (error) {
-            console.error('Error logging filtered message:', error);
-        }
-    }
+			const embed = {
+				color: 0xff0000,
+				title: '🚫 Word Filter Alert',
+				fields: [
+					{ 
+						name: 'User', 
+						value: `${displayName} (${originalData.author.id})`, 
+						inline: true 
+					},
+					{ 
+						name: 'Channel', 
+						value: `#${channel.name}`, 
+						inline: true 
+					},
+					{ 
+						name: 'Detected Words', 
+						value: detectedWords.join(', '), 
+						inline: false 
+					},
+					{ 
+						name: 'Original Message', 
+						value: originalData.content.substring(0, 1024) || '*No text content*', 
+						inline: false 
+					}
+				],
+				timestamp: new Date().toISOString()
+			};
+
+			// Add attachment info if any
+			if (originalData.attachments.length > 0) {
+				const attachmentInfo = originalData.attachments
+					.map(att => `${att.name} (${this.formatFileSize(att.size)})`)
+					.join('\n');
+				
+				embed.fields.push({
+					name: 'Attachments',
+					value: attachmentInfo,
+					inline: false
+				});
+			}
+			
+			await logChannel.send({ embeds: [embed] });
+		} catch (error) {
+			console.error('Error logging filtered message:', error);
+		}
+	}
 
     censorContent(content, detectedWords) {
         if (!content) return content;

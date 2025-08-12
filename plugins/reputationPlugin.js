@@ -319,10 +319,8 @@ class ReputationPlugin {
         this.userCooldowns.set(cooldownKey, Date.now());
         this.updateLimits(guildId, fromUserId, finalAmount);
         await this.logAuditEvent(guildId, 'rep_given', fromUserId, toUserId, { category, amount: finalAmount, reason, type, multiplier });
+		await this.sendPublicReputationAnnouncement(guildId, fromUserId, toUserId, category, finalAmount, reason, channelId);
 
-        if (channelId) {
-            await this.sendPublicReputationAnnouncement(guildId, fromUserId, toUserId, category, finalAmount, reason, channelId);
-        }
 
         return { success: true, amount: finalAmount };
     }
@@ -686,120 +684,119 @@ class ReputationPlugin {
     }
 
     async handleThanksMessage(message, guildSettings) {
-        const content = message.content.toLowerCase();
-        const mentions = message.mentions.users;
-        
-        if (mentions.size === 0) return;
-        
-        const hasThanks = this.THANKS_PATTERNS.some(pattern => pattern.test(content));
-        if (!hasThanks) return;
+		const content = message.content.toLowerCase();
+		const mentions = message.mentions.users;
+		
+		if (mentions.size === 0) return;
+		
+		const hasThanks = this.THANKS_PATTERNS.some(pattern => pattern.test(content));
+		if (!hasThanks) return;
 
-        const targetUser = mentions.first();
-        if (targetUser.id === message.author.id || targetUser.bot) return;
+		const targetUser = mentions.first();
+		if (targetUser.id === message.author.id || targetUser.bot) return;
 
-        const row = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                    .setCustomId(`rep_thanks_${targetUser.id}_${message.author.id}`)
-                    .setLabel('Give Reputation')
-                    .setStyle(ButtonStyle.Primary)
-                    .setEmoji('🏆')
-            );
+		// Automatically give reputation without button
+		const result = await this.giveReputation(
+			message.guild.id,
+			message.author.id,
+			targetUser.id,
+			'helpfulness',
+			1,
+			'Thanked in chat',
+			'auto_thanks',
+			message.channel.id
+		);
 
-        const embed = new EmbedBuilder()
-            .setColor(0x00ff00)
-            .setDescription(`${message.author} thanked ${targetUser}! Give them reputation?`)
-            .setTimestamp();
+		if (result.success) {
+			// Send a simple confirmation embed without any buttons
+			const embed = new EmbedBuilder()
+				.setColor(0x00ff00)
+				.setDescription(`✅ ${message.author} thanked ${targetUser} and gave them **${result.amount}** helpfulness reputation!`)
+				.setTimestamp();
 
-        await message.reply({ embeds: [embed], components: [row] });
-    }
+			await message.reply({ embeds: [embed] });
+		} else {
+			// Send error message if reputation couldn't be given (e.g., cooldown)
+			const embed = new EmbedBuilder()
+				.setColor(0xffaa00)
+				.setDescription(`⏱️ ${message.author} thanked ${targetUser}\n${result.error}`)
+				.setTimestamp();
 
-    async handleReputationInteraction(interaction) {
-        const [, action, targetUserId, fromUserId] = interaction.customId.split('_');
-        
-        if (action === 'thanks' && interaction.user.id === fromUserId) {
-            const modal = new ModalBuilder()
-                .setCustomId(`rep_reason_${targetUserId}_${fromUserId}`)
-                .setTitle('Give Reputation');
+			await message.reply({ embeds: [embed] });
+		}
+	}
 
-            const reasonInput = new TextInputBuilder()
-                .setCustomId('reason')
-                .setLabel('Reason for giving reputation')
-                .setStyle(TextInputStyle.Short)
-                .setRequired(true)
-                .setMaxLength(200);
-
-            const categoryInput = new TextInputBuilder()
-                .setCustomId('category')
-                .setLabel('Category (helpfulness/creativity/reliability/community)')
-                .setStyle(TextInputStyle.Short)
-                .setRequired(true)
-                .setValue('helpfulness');
-
-            const firstRow = new ActionRowBuilder().addComponents(reasonInput);
-            const secondRow = new ActionRowBuilder().addComponents(categoryInput);
-
-            modal.addComponents(firstRow, secondRow);
-            await interaction.showModal(modal);
-        }
-    }
-
-    async handleReasonModal(interaction) {
-        const [, , targetUserId, fromUserId] = interaction.customId.split('_');
-        const reason = interaction.fields.getTextInputValue('reason');
-        const category = interaction.fields.getTextInputValue('category').toLowerCase();
-
-        if (!this.REP_CATEGORIES.includes(category)) {
-            return await interaction.reply({ 
-                content: '❌ Invalid category. Use: helpfulness, creativity, reliability, or community', 
-                ephemeral: true 
-            });
-        }
-
-        const result = await this.giveReputation(
-            interaction.guildId,
-            fromUserId,
-            targetUserId,
-            category,
-            1,
-            reason,
-            'button_thanks',
-            interaction.channelId
-        );
-
-        if (result.success) {
-            await interaction.reply({ 
-                content: `✅ Gave ${result.amount} ${category} reputation to <@${targetUserId}>!`, 
-                ephemeral: true 
-            });
-        } else {
-            await interaction.reply({ 
-                content: `❌ ${result.error}`, 
-                ephemeral: true 
-            });
-        }
-    }
 
     async sendPublicReputationAnnouncement(guildId, fromUserId, toUserId, category, amount, reason, channelId) {
-        try {
-            const channel = this.client.channels.cache.get(channelId);
-            if (!channel) return;
+		try {
+			// HARDCODED: Always send to this specific channel
+			const REPUTATION_CHANNEL_ID = '1390335452439121920';
+			const ERROR_CHANNEL_ID = '1257813127794397327';
+			
+			// Always use the hardcoded channel, ignore the channelId parameter
+			const channel = this.client.channels.cache.get(REPUTATION_CHANNEL_ID);
+			
+			if (!channel) {
+				console.error(`Could not find hardcoded reputation channel ${REPUTATION_CHANNEL_ID}`);
+				
+				// Send error to the error channel
+				const errorChannel = this.client.channels.cache.get(ERROR_CHANNEL_ID);
+				if (errorChannel) {
+					const errorEmbed = new EmbedBuilder()
+						.setColor(0xff0000)
+						.setTitle('❌ Reputation Channel Error')
+						.setDescription(`Could not find reputation channel ${REPUTATION_CHANNEL_ID}`)
+						.addFields(
+							{ name: 'Attempted Action', value: 'Send reputation announcement', inline: false },
+							{ name: 'From User', value: `<@${fromUserId}>`, inline: true },
+							{ name: 'To User', value: `<@${toUserId}>`, inline: true },
+							{ name: 'Category', value: category, inline: true },
+							{ name: 'Amount', value: amount.toString(), inline: true },
+							{ name: 'Reason', value: reason || 'No reason provided', inline: false }
+						)
+						.setTimestamp();
+					
+					await errorChannel.send({ embeds: [errorEmbed] });
+				}
+				return;
+			}
 
-            const embed = new EmbedBuilder()
-                .setColor(0x00ff00)
-                .setTitle('🏆 Reputation Given!')
-                .setDescription(`<@${fromUserId}> gave **${amount}** ${category} reputation to <@${toUserId}>`)
-                .addFields(
-                    { name: 'Category', value: `${this.getCategoryEmoji(category)} ${category.charAt(0).toUpperCase() + category.slice(1)}`, inline: true },
-                    { name: 'Reason', value: reason || 'No reason provided', inline: false }
-                )
-                .setTimestamp();
+			const embed = new EmbedBuilder()
+				.setColor(0x00ff00)
+				.setTitle('🏆 Reputation Given!')
+				.setDescription(`<@${fromUserId}> gave **${amount}** ${category} reputation to <@${toUserId}>`)
+				.addFields(
+					{ name: 'Category', value: `${this.getCategoryEmoji(category)} ${category.charAt(0).toUpperCase() + category.slice(1)}`, inline: true },
+					{ name: 'Reason', value: reason || 'No reason provided', inline: false }
+				)
+				.setTimestamp();
 
-            await channel.send({ embeds: [embed] });
-        } catch (error) {
-            console.error('Error sending reputation announcement:', error);
-        }
-    }
+			await channel.send({ embeds: [embed] });
+			console.log(`Successfully sent reputation announcement to channel ${REPUTATION_CHANNEL_ID}`);
+		} catch (error) {
+			console.error('Error sending reputation announcement:', error);
+			
+			// Send error to the error channel
+			const ERROR_CHANNEL_ID = '1257813127794397327';
+			const errorChannel = this.client.channels.cache.get(ERROR_CHANNEL_ID);
+			if (errorChannel) {
+				const errorEmbed = new EmbedBuilder()
+					.setColor(0xff0000)
+					.setTitle('❌ Reputation System Error')
+					.setDescription('An error occurred while sending reputation announcement')
+					.addFields(
+						{ name: 'Error Message', value: error.message || 'Unknown error', inline: false },
+						{ name: 'From User', value: `<@${fromUserId}>`, inline: true },
+						{ name: 'To User', value: `<@${toUserId}>`, inline: true },
+						{ name: 'Category', value: category, inline: true },
+						{ name: 'Stack Trace', value: `\`\`\`${error.stack?.substring(0, 500) || 'No stack trace'}\`\`\``, inline: false }
+					)
+					.setTimestamp();
+				
+				await errorChannel.send({ embeds: [errorEmbed] });
+			}
+		}
+	}
 
     async checkRoleRewards(guildId, userId, userRep) {
         const settings = await this.loadSettings();
@@ -1227,7 +1224,7 @@ class ReputationPlugin {
                 
                 async function loadServerList() {
                     try {
-                        const response = await fetch('/api/user/guilds');
+                        const response = await fetch('/api/servers');
                         if (!response.ok) throw new Error('Failed to fetch guilds');
                         
                         const guilds = await response.json();

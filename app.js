@@ -197,15 +197,24 @@ app.get('/api/channels/:serverId', ensureAuthenticated, async (req, res) => {
             return res.status(404).json({ error: 'Server not found' });
         }
         
-        const channels = guild.channels.cache
-            .filter(channel => channel.type === ChannelType.GuildText) 
-            .sort((a, b) => a.position - b.position)
-            .map(channel => ({
-                id: channel.id,
-                name: channel.name
-            }));
+        console.log(`\n=== Loading channels for server: ${guild.name} ===`);
         
-        res.json(channels);
+        const channels = guild.channels.cache
+            .filter(channel => channel.type === ChannelType.GuildText)
+            .map(channel => ({ // Log before sorting
+                id: channel.id,
+                name: channel.name,
+                position: channel.position
+            }))
+            .sort((a, b) => {
+                console.log(`Sorting: ${a.name} (pos: ${a.position}) vs ${b.name} (pos: ${b.position})`);
+                return a.position - b.position;
+            });
+        
+        console.log('Final channel order:', channels.map(c => `${c.name} (${c.position})`));
+        console.log('=== End channel loading ===\n');
+        
+        res.json(channels.map(c => ({ id: c.id, name: c.name }))); // Remove position from response
     } catch (error) {
         console.error('Error fetching channels:', error);
         res.status(500).json({ error: 'Failed to fetch channels' });

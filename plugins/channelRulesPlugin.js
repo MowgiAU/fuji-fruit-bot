@@ -833,6 +833,7 @@ class ChannelRulesPlugin {
                     
                     <div class="form-group">
                         <label for="rulesChannelSelect">Channel</label>
+						<input type="text" id="rulesChannelSearch" class="form-control" placeholder="🔍 Search channels..." style="margin-bottom: 10px; display: none;">
                         <select id="rulesChannelSelect" required disabled>
                             <option value="">Select a channel...</option>
                         </select>
@@ -1022,17 +1023,17 @@ class ChannelRulesPlugin {
             // Wrap in IIFE to avoid variable conflicts
             (function() {
                 const rulesServerSelect = document.getElementById('rulesServerSelect');
-                const rulesChannelSelect = document.getElementById('rulesChannelSelect');
-                const rulesLogChannelSelect = document.getElementById('rulesLogChannelSelect');
-                const channelRulesSettings = document.getElementById('channelRulesSettings');
-                const rulesEnabled = document.getElementById('rulesEnabled');
-                const rulesList = document.getElementById('rulesList');
-                const noRulesMessage = document.getElementById('noRulesMessage');
-                const addRuleBtn = document.getElementById('addRuleBtn');
-                const saveChannelRules = document.getElementById('saveChannelRules');
-                const deleteChannelRules = document.getElementById('deleteChannelRules');
-                const btnText = saveChannelRules ? saveChannelRules.querySelector('.btn-text') : null;
-                const btnLoader = saveChannelRules ? saveChannelRules.querySelector('.btn-loader') : null;
+				const rulesChannelSelect = document.getElementById('rulesChannelSelect');
+				const rulesLogChannelSelect = document.getElementById('rulesLogChannelSelect');
+				const channelRulesSettings = document.getElementById('channelRulesSettings');
+				const rulesEnabled = document.getElementById('rulesEnabled');
+				const rulesList = document.getElementById('rulesList');
+				const noRulesMessage = document.getElementById('noRulesMessage');
+				const addRuleBtn = document.getElementById('addRuleBtn');
+				const saveChannelRules = document.getElementById('saveChannelRules');
+				const deleteChannelRules = document.getElementById('deleteChannelRules');
+				const btnText = saveChannelRules ? saveChannelRules.querySelector('.btn-text') : null;
+				const btnLoader = saveChannelRules ? saveChannelRules.querySelector('.btn-loader') : null;
                 
                 // Modal elements
                 const ruleModal = document.getElementById('ruleModal');
@@ -1254,41 +1255,61 @@ class ChannelRulesPlugin {
                     }
                 }
                 
-                async function loadRulesChannels(serverId) {
-                    try {
-                        rulesChannelSelect.innerHTML = '<option value="">Loading...</option>';
-                        const response = await fetch(\`/api/channels/\${serverId}\`);
-                        const channels = await response.json();
-                        
-                        rulesChannelSelect.innerHTML = '<option value="">Select a channel...</option>';
-                        channels.forEach(channel => {
-                            const option = document.createElement('option');
-                            option.value = channel.id;
-                            option.textContent = \`# \${channel.name}\`;
-                            rulesChannelSelect.appendChild(option);
-                        });
-                    } catch (error) {
-                        console.error('Error loading channels:', error);
-                        rulesChannelSelect.innerHTML = '<option value="">Error loading channels</option>';
-                    }
-                }
-                
                 async function loadRulesLogChannels(serverId) {
-                    try {
-                        const response = await fetch(\`/api/channels/\${serverId}\`);
-                        const channels = await response.json();
-                        
-                        rulesLogChannelSelect.innerHTML = '<option value="">Select a channel for violation logs...</option>';
-                        channels.forEach(channel => {
-                            const option = document.createElement('option');
-                            option.value = channel.id;
-                            option.textContent = \`# \${channel.name}\`;
-                            rulesLogChannelSelect.appendChild(option);
-                        });
-                    } catch (error) {
-                        console.error('Error loading log channels:', error);
-                    }
-                }
+					try {
+						const response = await fetch(`/api/channels/${serverId}`);
+						const channels = await response.json();
+						
+						rulesLogChannelSelect.innerHTML = '<option value="">Select a channel for violation logs...</option>';
+						channels.forEach(channel => {
+							const option = document.createElement('option');
+							option.value = channel.id;
+							option.textContent = `# ${channel.name}`;
+							rulesLogChannelSelect.appendChild(option);
+						});
+						
+						// Note: Log channel select typically doesn't need search since it's a single selection
+						// But if you want to add search for the log channel dropdown too, you would need:
+						// 1. Add a search input for the log channel in your HTML
+						// 2. Then call setupChannelSearch with the correct IDs
+						
+					} catch (error) {
+						console.error('Error loading log channels:', error);
+						rulesLogChannelSelect.innerHTML = '<option value="">Error loading channels</option>';
+					}
+				}
+
+				// Keep the main channel loading function separate:
+				async function loadRulesChannels(serverId) {
+					try {
+						const searchInput = document.getElementById('rulesChannelSearch');
+						const rulesChannelSelect = document.getElementById('rulesChannelSelect');
+						
+						rulesChannelSelect.innerHTML = '<option value="">Loading...</option>';
+						if (searchInput) searchInput.style.display = 'none';
+						
+						const response = await fetch(`/api/channels/${serverId}`);
+						const channels = await response.json();
+						
+						rulesChannelSelect.innerHTML = '<option value="">Select a channel...</option>';
+						channels.forEach(channel => {
+							const option = document.createElement('option');
+							option.value = channel.id;
+							option.textContent = `# ${channel.name}`;
+							rulesChannelSelect.appendChild(option);
+						});
+						
+						// Enable search functionality for the main channel select
+						if (searchInput) searchInput.style.display = 'block';
+						window.setupChannelSearch('rulesChannelSearch', 'rulesChannelSelect');
+						
+					} catch (error) {
+						console.error('Error loading channels:', error);
+						rulesChannelSelect.innerHTML = '<option value="">Error loading channels</option>';
+						const searchInput = document.getElementById('rulesChannelSearch');
+						if (searchInput) searchInput.style.display = 'none';
+					}
+				}
                 
                 // NEW: Load server roles
                 async function loadServerRoles(serverId) {

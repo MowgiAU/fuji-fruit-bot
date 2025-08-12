@@ -1198,7 +1198,7 @@ class CustomCommandsPlugin {
                     
                     async function loadServers() {
                         try {
-                            const response = await fetch('/api/user/servers');
+                            const response = await fetch('/api/servers');
                             const servers = await response.json();
                             
                             const serverSelect = document.getElementById('ccServerSelect');
