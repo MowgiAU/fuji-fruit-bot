@@ -1257,21 +1257,16 @@ class ChannelRulesPlugin {
                 
                 async function loadRulesLogChannels(serverId) {
 					try {
-						const response = await fetch(`/api/channels/${serverId}`);
+						const response = await fetch(\`/api/channels/\${serverId}\`);
 						const channels = await response.json();
 						
 						rulesLogChannelSelect.innerHTML = '<option value="">Select a channel for violation logs...</option>';
 						channels.forEach(channel => {
 							const option = document.createElement('option');
 							option.value = channel.id;
-							option.textContent = `# ${channel.name}`;
+							option.textContent = \`# \${channel.name}\`;
 							rulesLogChannelSelect.appendChild(option);
 						});
-						
-						// Note: Log channel select typically doesn't need search since it's a single selection
-						// But if you want to add search for the log channel dropdown too, you would need:
-						// 1. Add a search input for the log channel in your HTML
-						// 2. Then call setupChannelSearch with the correct IDs
 						
 					} catch (error) {
 						console.error('Error loading log channels:', error);
@@ -1279,7 +1274,6 @@ class ChannelRulesPlugin {
 					}
 				}
 
-				// Keep the main channel loading function separate:
 				async function loadRulesChannels(serverId) {
 					try {
 						const searchInput = document.getElementById('rulesChannelSearch');
@@ -1288,18 +1282,17 @@ class ChannelRulesPlugin {
 						rulesChannelSelect.innerHTML = '<option value="">Loading...</option>';
 						if (searchInput) searchInput.style.display = 'none';
 						
-						const response = await fetch(`/api/channels/${serverId}`);
+						const response = await fetch(\`/api/channels/\${serverId}\`);
 						const channels = await response.json();
 						
 						rulesChannelSelect.innerHTML = '<option value="">Select a channel...</option>';
 						channels.forEach(channel => {
 							const option = document.createElement('option');
 							option.value = channel.id;
-							option.textContent = `# ${channel.name}`;
+							option.textContent = \`# \${channel.name}\`;
 							rulesChannelSelect.appendChild(option);
 						});
 						
-						// Enable search functionality for the main channel select
 						if (searchInput) searchInput.style.display = 'block';
 						window.setupChannelSearch('rulesChannelSearch', 'rulesChannelSelect');
 						
@@ -1311,7 +1304,6 @@ class ChannelRulesPlugin {
 					}
 				}
                 
-                // NEW: Load server roles
                 async function loadServerRoles(serverId) {
                     try {
                         const response = await fetch(\`/api/plugins/channelrules/roles/\${serverId}\`);
@@ -1327,7 +1319,6 @@ class ChannelRulesPlugin {
                     }
                 }
                 
-                // NEW: Populate role select elements
                 function populateRoleSelects() {
                     if (requiredRolesSelect) {
                         requiredRolesSelect.innerHTML = '';
@@ -1352,7 +1343,6 @@ class ChannelRulesPlugin {
                     }
                 }
                 
-                // NEW: Display selected roles as badges
                 function displaySelectedRoles(container, roleIds, type) {
                     if (!container) return;
                     
@@ -1412,7 +1402,6 @@ class ChannelRulesPlugin {
                         
                         const ruleInfo = getRuleDisplayInfo(rule);
                         
-                        // NEW: Add role condition display
                         let roleConditionText = '';
                         if (rule.roleConditions) {
                             const conditions = [];
@@ -1453,21 +1442,16 @@ class ChannelRulesPlugin {
                 
                 function getRuleDisplayInfo(rule) {
                     const typeDisplays = {
-                        // File requirement rules
                         'must_contain_audio': { title: 'Must Contain Audio', description: 'Messages must include audio files' },
                         'must_contain_image': { title: 'Must Contain Image', description: 'Messages must include image files' },
                         'must_contain_video': { title: 'Must Contain Video', description: 'Messages must include video files' },
                         'must_contain_file': { title: 'Must Contain File', description: 'Messages must include any file attachment' },
-                        
-                        // File blocking rules
                         'block_audio': { title: 'Block Audio', description: 'Audio files are blocked' },
                         'block_images': { title: 'Block Images', description: 'Image files are blocked' },
                         'block_videos': { title: 'Block Videos', description: 'Video files are blocked' },
                         'block_all_files': { title: 'Block All Files', description: 'All file attachments are blocked' },
                         'block_file_extensions': { title: 'Block Extensions', description: \`Blocked: .\${(rule.extensions || []).join(', .')}\` },
                         'block_large_files': { title: 'Block Large Files', description: \`Files over \${formatFileSize(rule.maxSize || 10485760)} are blocked\` },
-                        
-                        // Content rules
                         'blocked_domains': { title: 'Blocked Domains', description: \`Blocked: \${(rule.domains || []).join(', ')}\` },
                         'required_text': { title: 'Required Text', description: \`Must contain: \${(rule.texts || []).join(', ')}\` },
                         'blocked_text': { title: 'Blocked Text', description: \`Cannot contain: \${(rule.texts || []).join(', ')}\` },
@@ -1503,7 +1487,6 @@ class ChannelRulesPlugin {
                     if (ruleAction) ruleAction.value = rule.action;
                     if (customMessage) customMessage.value = rule.customMessage || '';
                     
-                    // NEW: Load role conditions
                     if (rule.roleConditions) {
                         if (enableRoleConditions) enableRoleConditions.checked = true;
                         if (roleConditionsConfig) roleConditionsConfig.style.display = 'block';
@@ -1511,7 +1494,6 @@ class ChannelRulesPlugin {
                         selectedRequiredRoleIds = rule.roleConditions.requiredRoles || [];
                         selectedExemptRoleIds = rule.roleConditions.exemptRoles || [];
                         
-                        // Set selected options in multi-selects
                         if (requiredRolesSelect) {
                             Array.from(requiredRolesSelect.options).forEach(option => {
                                 option.selected = selectedRequiredRoleIds.includes(option.value);
@@ -1535,7 +1517,6 @@ class ChannelRulesPlugin {
                     
                     updateRuleConfig(rule.type);
                     
-                    // Populate specific rule data
                     if (rule.type === 'blocked_domains' && rule.domains) {
                         tempDomains = [...rule.domains];
                         displayDomains();
@@ -1576,7 +1557,6 @@ class ChannelRulesPlugin {
                         ruleModal.style.display = 'flex';
                         
                         if (editingRuleIndex === -1) {
-                            // Reset form for new rule
                             if (ruleType) ruleType.value = '';
                             if (ruleAction) ruleAction.value = 'delete_and_dm';
                             if (customMessage) customMessage.value = '';
@@ -1593,7 +1573,6 @@ class ChannelRulesPlugin {
                             if (fileSizeUnit) fileSizeUnit.value = 'MB';
                             updateRuleConfig('');
                             
-                            // Clear role selections
                             if (requiredRolesSelect) {
                                 Array.from(requiredRolesSelect.options).forEach(option => option.selected = false);
                             }
@@ -1604,7 +1583,6 @@ class ChannelRulesPlugin {
                             if (selectedExemptRoles) selectedExemptRoles.innerHTML = '';
                         }
                         
-                        // Load roles if not already loaded
                         if (serverRoles.length === 0 && currentServerId) {
                             loadServerRoles(currentServerId);
                         }
@@ -1619,14 +1597,12 @@ class ChannelRulesPlugin {
                 }
                 
                 function updateRuleConfig(type) {
-                    // Hide all config sections
                     if (domainsConfig) domainsConfig.style.display = 'none';
                     if (textsConfig) textsConfig.style.display = 'none';
                     if (extensionsConfig) extensionsConfig.style.display = 'none';
                     if (fileSizeConfig) fileSizeConfig.style.display = 'none';
                     if (lengthConfig) lengthConfig.style.display = 'none';
                     
-                    // Show relevant config section
                     switch (type) {
                         case 'blocked_domains':
                             if (domainsConfig) domainsConfig.style.display = 'block';
@@ -1770,7 +1746,6 @@ class ChannelRulesPlugin {
                         customMessage: message || null
                     };
                     
-                    // NEW: Add role conditions if enabled
                     if (enableRoleConditions && enableRoleConditions.checked) {
                         rule.roleConditions = {};
                         
@@ -1782,13 +1757,11 @@ class ChannelRulesPlugin {
                             rule.roleConditions.exemptRoles = [...selectedExemptRoleIds];
                         }
                         
-                        // Only add roleConditions if at least one condition is set
                         if (!rule.roleConditions.requiredRoles && !rule.roleConditions.exemptRoles) {
                             delete rule.roleConditions;
                         }
                     }
                     
-                    // Add type-specific data
                     switch (type) {
                         case 'blocked_domains':
                             if (tempDomains.length === 0) {
@@ -1829,7 +1802,6 @@ class ChannelRulesPlugin {
                                 return;
                             }
                             
-                            // Convert to bytes
                             const sizeInBytes = unit === 'KB' ? size * 1024 : size * 1024 * 1024;
                             rule.maxSize = sizeInBytes;
                             break;

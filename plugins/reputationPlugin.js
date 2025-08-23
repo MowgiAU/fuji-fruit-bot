@@ -683,19 +683,24 @@ class ReputationPlugin {
         return emojis[category] || '📊';
     }
 
-    async handleThanksMessage(message, guildSettings) {
-		const content = message.content.toLowerCase();
-		const mentions = message.mentions.users;
-		
-		if (mentions.size === 0) return;
-		
-		const hasThanks = this.THANKS_PATTERNS.some(pattern => pattern.test(content));
+// --- NEW THANKS MESSAGE ---
+	async handleThanksMessage(message, guildSettings) {
+		// Create a new string with URLs removed to avoid matching keywords within them.
+		const urlRegex = /https?:\/\/[^\s]+/g;
+		const contentWithoutUrls = message.content.replace(urlRegex, '');
+
+		// Now, check for thanks patterns in the URL-free content. The patterns are case-insensitive.
+		const hasThanks = this.THANKS_PATTERNS.some(pattern => pattern.test(contentWithoutUrls));
 		if (!hasThanks) return;
+
+		const mentions = message.mentions.users;
+		if (mentions.size === 0) return;
 
 		const targetUser = mentions.first();
 		if (targetUser.id === message.author.id || targetUser.bot) return;
 
-		// Automatically give reputation without button
+		// Attempt to give reputation. The announcement will be sent to the configured
+		// channel by the `sendPublicReputationAnnouncement` method inside `giveReputation`.
 		const result = await this.giveReputation(
 			message.guild.id,
 			message.author.id,
@@ -708,21 +713,27 @@ class ReputationPlugin {
 		);
 
 		if (result.success) {
-			// Send a simple confirmation embed without any buttons
-			const embed = new EmbedBuilder()
-				.setColor(0x00ff00)
-				.setDescription(`✅ ${message.author} thanked ${targetUser} and gave them **${result.amount}** helpfulness reputation!`)
-				.setTimestamp();
-
-			await message.reply({ embeds: [embed] });
+			// Instead of sending a noisy reply in the channel, just react to the
+			// original message to confirm the action was processed.
+			try {
+				await message.react('✅');
+			} catch (error) {
+				console.error(`Could not react to message ${message.id}:`, error);
+			}
 		} else {
-			// Send error message if reputation couldn't be given (e.g., cooldown)
+			// The original logic for sending an error (e.g., for cooldowns) is useful
+			// for user feedback, so we'll keep it.
 			const embed = new EmbedBuilder()
 				.setColor(0xffaa00)
 				.setDescription(`⏱️ ${message.author} thanked ${targetUser}\n${result.error}`)
 				.setTimestamp();
 
-			await message.reply({ embeds: [embed] });
+			try {
+				// Reply to the user so they know why it didn't work, but don't ping them.
+				await message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } });
+			} catch (error) {
+				console.error(`Could not send error reply for message ${message.id}:`, error);
+			}
 		}
 	}
 

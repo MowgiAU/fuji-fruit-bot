@@ -199,17 +199,23 @@ app.get('/api/channels/:serverId', ensureAuthenticated, async (req, res) => {
         
         console.log(`\n=== Loading channels for server: ${guild.name} ===`);
         
+        // Define which channel types to EXCLUDE. This is more future-proof.
+        const excludedChannelTypes = [
+            ChannelType.GuildCategory,      // This is a container, not a channel for messages.
+            ChannelType.GuildVoice,         // This is a pure voice channel (text-in-voice is a separate feature).
+            ChannelType.GuildStageVoice,    // This is a stage channel.
+        ];
+
         const channels = guild.channels.cache
-            .filter(channel => channel.type === ChannelType.GuildText)
-            .map(channel => ({ // Log before sorting
+            .filter(channel => !excludedChannelTypes.includes(channel.type)) // <-- Note the "!" for exclusion
+            .map(channel => ({
                 id: channel.id,
                 name: channel.name,
                 position: channel.position
             }))
-            .sort((a, b) => {
-                console.log(`Sorting: ${a.name} (pos: ${a.position}) vs ${b.name} (pos: ${b.position})`);
-                return a.position - b.position;
-            });
+            .sort((a, b) => a.position - b.position);
+            
+        // --- END --
         
         console.log('Final channel order:', channels.map(c => `${c.name} (${c.position})`));
         console.log('=== End channel loading ===\n');
